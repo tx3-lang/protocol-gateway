@@ -1,0 +1,17 @@
+@startuml c4-context
+!include <C4/C4_Context>
+
+LAYOUT_WITH_LEGEND()
+
+title System Context — Tx3 Protocol API Layer
+
+Person(client, "Client", "dApp or user who needs to\nbuild and sign Cardano transactions")
+
+System(api, "Tx3 Protocol API Layer", "JSON-RPC 2.0 server.\nResolves Tx3 protocol definitions and delegates\ntransaction construction to TRP.")
+
+System_Ext(trp, "TRP Service", "Transaction Resolution Protocol.\nAccepts a TIR blob and resolved arguments,\nreturns an unsigned CBOR transaction.")
+
+Rel(client, api, "apply_tx", "JSON-RPC / HTTP POST")
+Rel(api, trp, "resolve transaction", "HTTP POST / JSON")
+
+@enduml
