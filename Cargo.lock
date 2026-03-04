@@ -17,6 +17,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "tower-http",
  "tx3-sdk",
 ]
 

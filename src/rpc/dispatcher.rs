@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
+use crate::rpc::discover;
 use crate::rpc::error::RpcError;
 use crate::rpc::handler::{self, AppState};
 
@@ -34,6 +35,16 @@ pub async fn dispatch(
     if request.jsonrpc != "2.0" {
         let err = RpcError::invalid_request("jsonrpc must be \"2.0\"");
         return (StatusCode::OK, Json(err.to_json_rpc(id)));
+    }
+
+    if request.method == "rpc.discover" {
+        let doc = discover::generate_openrpc(&state);
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": id.unwrap_or(Value::Null),
+            "result": doc,
+        });
+        return (StatusCode::OK, Json(response));
     }
 
     let (protocol_name, tx_name) = match parse_method(&request.method) {

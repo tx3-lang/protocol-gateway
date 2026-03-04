@@ -60,4 +60,8 @@ impl TiiRegistry {
     pub fn get(&self, name: &str) -> Option<&Protocol> {
         self.protocols.get(name)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Protocol)> {
+        self.protocols.iter()
+    }
 }
