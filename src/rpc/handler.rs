@@ -1,4 +1,4 @@
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::sync::Arc;
 use tx3_sdk::trp::Client;
 
@@ -54,7 +54,11 @@ pub async fn invoke_tx(
         .map_err(|e| RpcError::args_mismatch(e.to_string()))?;
 
     let trp_options = trp_options_for_network(network, &state.trp_override, &state.trp_headers)
-        .ok_or_else(|| RpcError::build_error(format!("no TRP endpoint configured for network '{network}'")))?;
+        .ok_or_else(|| {
+            RpcError::build_error(format!(
+                "no TRP endpoint configured for network '{network}'"
+            ))
+        })?;
 
     let trp_client = Client::new(trp_options);
 

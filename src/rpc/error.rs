@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const PARSE_ERROR: i32 = -32700;
 pub const INVALID_REQUEST: i32 = -32600;
@@ -20,11 +20,19 @@ pub struct RpcError {
 
 impl RpcError {
     pub fn parse_error(msg: impl Into<String>) -> Self {
-        Self { code: PARSE_ERROR, message: msg.into(), data: None }
+        Self {
+            code: PARSE_ERROR,
+            message: msg.into(),
+            data: None,
+        }
     }
 
     pub fn invalid_request(msg: impl Into<String>) -> Self {
-        Self { code: INVALID_REQUEST, message: msg.into(), data: None }
+        Self {
+            code: INVALID_REQUEST,
+            message: msg.into(),
+            data: None,
+        }
     }
 
     pub fn method_not_found(method: &str) -> Self {
@@ -36,11 +44,19 @@ impl RpcError {
     }
 
     pub fn invalid_params(msg: impl Into<String>) -> Self {
-        Self { code: INVALID_PARAMS, message: msg.into(), data: None }
+        Self {
+            code: INVALID_PARAMS,
+            message: msg.into(),
+            data: None,
+        }
     }
 
     pub fn internal(msg: impl Into<String>) -> Self {
-        Self { code: INTERNAL_ERROR, message: msg.into(), data: None }
+        Self {
+            code: INTERNAL_ERROR,
+            message: msg.into(),
+            data: None,
+        }
     }
 
     pub fn protocol_not_found(name: &str) -> Self {
@@ -60,11 +76,19 @@ impl RpcError {
     }
 
     pub fn args_mismatch(msg: impl Into<String>) -> Self {
-        Self { code: ARGS_MISMATCH, message: msg.into(), data: None }
+        Self {
+            code: ARGS_MISMATCH,
+            message: msg.into(),
+            data: None,
+        }
     }
 
     pub fn build_error(msg: impl Into<String>) -> Self {
-        Self { code: BUILD_ERROR, message: msg.into(), data: None }
+        Self {
+            code: BUILD_ERROR,
+            message: msg.into(),
+            data: None,
+        }
     }
 
     pub fn network_not_found(name: &str) -> Self {

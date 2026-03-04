@@ -1,8 +1,8 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use tx3_sdk::tii::ParamType;
 
@@ -85,79 +85,72 @@ pub fn generate_openrpc(state: &AppState) -> Value {
         for tx_name in protocol.txs().keys() {
             let method_name = format!("{protocol_name}.{tx_name}");
 
-            let (params_descriptors, description) =
-                match protocol.invoke(tx_name, Some(network)) {
-                    Ok(mut invocation) => {
-                        let all_params = invocation.params().clone();
-                        let unspecified: Vec<String> = invocation
-                            .unspecified_params()
-                            .map(|(k, _)| k.clone())
-                            .collect();
+            let (params_descriptors, description) = match protocol.invoke(tx_name, Some(network)) {
+                Ok(mut invocation) => {
+                    let all_params = invocation.params().clone();
+                    let unspecified: Vec<String> = invocation
+                        .unspecified_params()
+                        .map(|(k, _)| k.clone())
+                        .collect();
 
-                        let mut prefilled: Vec<String> = Vec::new();
-                        let mut required: Vec<String> = Vec::new();
+                    let mut prefilled: Vec<String> = Vec::new();
+                    let mut required: Vec<String> = Vec::new();
 
-                        let mut descriptors: Vec<Value> = Vec::new();
+                    let mut descriptors: Vec<Value> = Vec::new();
 
-                        for (name, pt) in &all_params {
-                            let is_required = unspecified.contains(name);
-                            let label = param_type_label(pt);
+                    for (name, pt) in &all_params {
+                        let is_required = unspecified.contains(name);
+                        let label = param_type_label(pt);
 
-                            let desc = if is_required {
-                                required.push(name.clone());
-                                label.to_string()
-                            } else {
-                                prefilled.push(name.clone());
-                                format!("{label} (pre-filled by {network} profile)")
-                            };
+                        let desc = if is_required {
+                            required.push(name.clone());
+                            label.to_string()
+                        } else {
+                            prefilled.push(name.clone());
+                            format!("{label} (pre-filled by {network} profile)")
+                        };
 
-                            descriptors.push(json!({
-                                "name": name,
-                                "description": desc,
-                                "required": is_required,
-                                "schema": param_type_to_schema(pt)
-                            }));
-                        }
+                        descriptors.push(json!({
+                            "name": name,
+                            "description": desc,
+                            "required": is_required,
+                            "schema": param_type_to_schema(pt)
+                        }));
+                    }
 
-                        // Sort so required params come first
-                        descriptors.sort_by(|a, b| {
-                            let a_req = a["required"].as_bool().unwrap_or(false);
-                            let b_req = b["required"].as_bool().unwrap_or(false);
-                            b_req.cmp(&a_req)
-                        });
+                    // Sort so required params come first
+                    descriptors.sort_by(|a, b| {
+                        let a_req = a["required"].as_bool().unwrap_or(false);
+                        let b_req = b["required"].as_bool().unwrap_or(false);
+                        b_req.cmp(&a_req)
+                    });
 
-                        prefilled.sort();
-                        required.sort();
+                    prefilled.sort();
+                    required.sort();
 
-                        let mut desc = format!(
-                            "Build an unsigned Cardano transaction for {tx_name} \
+                    let mut desc = format!(
+                        "Build an unsigned Cardano transaction for {tx_name} \
                              in the {protocol_name} protocol.\n\nActive network: {network}"
-                        );
+                    );
 
-                        if !prefilled.is_empty() {
-                            desc.push_str(&format!(
-                                "\nProfile pre-fills: {}",
-                                prefilled.join(", ")
-                            ));
-                        }
-
-                        if !required.is_empty() {
-                            desc.push_str(&format!(
-                                "\nCaller must supply: {}",
-                                required.join(", ")
-                            ));
-                        }
-
-                        (descriptors, desc)
+                    if !prefilled.is_empty() {
+                        desc.push_str(&format!("\nProfile pre-fills: {}", prefilled.join(", ")));
                     }
-                    Err(_) => {
-                        let desc = format!(
-                            "Build an unsigned Cardano transaction for {tx_name} \
+
+                    if !required.is_empty() {
+                        desc.push_str(&format!("\nCaller must supply: {}", required.join(", ")));
+                    }
+
+                    (descriptors, desc)
+                }
+                Err(_) => {
+                    let desc = format!(
+                        "Build an unsigned Cardano transaction for {tx_name} \
                              in the {protocol_name} protocol."
-                        );
-                        (vec![], desc)
-                    }
-                };
+                    );
+                    (vec![], desc)
+                }
+            };
 
             methods.push(json!({
                 "name": method_name,
@@ -209,9 +202,8 @@ pub async fn docs_redirect() -> impl IntoResponse {
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(8080);
 
-    let url = format!(
-        "https://playground.open-rpc.org/?schemaUrl=http://localhost:{port}/openrpc.json"
-    );
+    let url =
+        format!("https://playground.open-rpc.org/?schemaUrl=http://localhost:{port}/openrpc.json");
 
     axum::response::Redirect::temporary(&url)
 }

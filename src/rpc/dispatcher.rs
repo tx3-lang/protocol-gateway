@@ -1,9 +1,9 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 use crate::rpc::discover;
@@ -18,10 +18,7 @@ struct JsonRpcRequest {
     params: Option<Value>,
 }
 
-pub async fn dispatch(
-    State(state): State<Arc<AppState>>,
-    body: String,
-) -> impl IntoResponse {
+pub async fn dispatch(State(state): State<Arc<AppState>>, body: String) -> impl IntoResponse {
     let request: JsonRpcRequest = match serde_json::from_str(&body) {
         Ok(r) => r,
         Err(_) => {

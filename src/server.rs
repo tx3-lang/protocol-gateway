@@ -1,5 +1,5 @@
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
