@@ -12,12 +12,22 @@ pub struct Config {
     pub protocols_dir: PathBuf,
     pub port: u16,
     pub trp_override: Option<String>,
+    pub trp_headers: Option<HashMap<String, String>>,
+    pub network: String,
 }
 
 impl Config {
     pub fn from_env() -> Self {
         Self {
             trp_override: env::var("TRP_URL").ok(),
+            trp_headers: env::var("TRP_HEADERS").ok().map(|raw| {
+                raw.split(',')
+                    .filter_map(|pair| {
+                        let (k, v) = pair.split_once('=')?;
+                        Some((k.trim().to_string(), v.trim().to_string()))
+                    })
+                    .collect()
+            }),
             protocols_dir: env::var("PROTOCOLS_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| PathBuf::from("./protocols")),
@@ -25,15 +35,20 @@ impl Config {
                 .ok()
                 .and_then(|p| p.parse().ok())
                 .unwrap_or(8080),
+            network: env::var("NETWORK").unwrap_or_else(|_| "mainnet".into()),
         }
     }
 }
 
-pub fn trp_options_for_network(network: &str, trp_override: &Option<String>) -> Option<ClientOptions> {
+pub fn trp_options_for_network(
+    network: &str,
+    trp_override: &Option<String>,
+    trp_headers: &Option<HashMap<String, String>>,
+) -> Option<ClientOptions> {
     if let Some(url) = trp_override {
         return Some(ClientOptions {
             endpoint: url.clone(),
-            headers: None,
+            headers: trp_headers.clone(),
         });
     }
 

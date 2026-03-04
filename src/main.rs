@@ -21,6 +21,8 @@ async fn main() {
     let state = Arc::new(AppState {
         registry,
         trp_override: config.trp_override,
+        trp_headers: config.trp_headers,
+        network: config.network,
     });
 
     let router = server::build_router(state);
