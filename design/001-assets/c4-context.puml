@@ -6,12 +6,17 @@ LAYOUT_WITH_LEGEND()
 title System Context — Tx3 Protocol API Layer
 
 Person(client, "Client", "dApp or user who needs to\nbuild and sign Cardano transactions")
+Person(developer, "Developer", "Explores available methods\nvia OpenRPC discovery")
 
-System(api, "Tx3 Protocol API Layer", "JSON-RPC 2.0 server.\nResolves Tx3 protocol definitions and delegates\ntransaction construction to TRP.")
+System(api, "Tx3 Protocol API Layer", "JSON-RPC 2.0 server.\nResolves Tx3 protocol definitions and delegates\ntransaction construction to TRP.\nExposes OpenRPC discovery endpoint.")
 
 System_Ext(trp, "TRP Service", "Transaction Resolution Protocol.\nAccepts a TIR blob and resolved arguments,\nreturns an unsigned CBOR transaction.")
+System_Ext(playground, "OpenRPC Playground", "Hosted interactive documentation UI.\nFetches the OpenRPC spec from the server\nto render method explorer.")
 
 Rel(client, api, "protocol.tx", "JSON-RPC / HTTP POST")
 Rel(api, trp, "resolve transaction", "HTTP POST / JSON")
+Rel(developer, api, "rpc.discover", "JSON-RPC / HTTP POST")
+Rel(developer, api, "GET /openrpc.json, GET /docs", "HTTP GET")
+Rel(playground, api, "fetch spec", "GET /openrpc.json")
 
 @enduml
