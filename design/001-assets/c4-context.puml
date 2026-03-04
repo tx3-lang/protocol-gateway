@@ -11,7 +11,7 @@ System(api, "Tx3 Protocol API Layer", "JSON-RPC 2.0 server.\nResolves Tx3 protoc
 
 System_Ext(trp, "TRP Service", "Transaction Resolution Protocol.\nAccepts a TIR blob and resolved arguments,\nreturns an unsigned CBOR transaction.")
 
-Rel(client, api, "apply_tx", "JSON-RPC / HTTP POST")
+Rel(client, api, "protocol.tx", "JSON-RPC / HTTP POST")
 Rel(api, trp, "resolve transaction", "HTTP POST / JSON")
 
 @enduml

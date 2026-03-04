@@ -3,9 +3,9 @@
 ## Overview
 
 This document specifies the initial scaffold for a JSON-RPC 2.0 server that dynamically exposes
-Tx3 protocols via a single method. The server reads protocol definitions from `.tii` files at
-startup, validates incoming requests against each protocol's schema, and delegates transaction
-construction to an external TRP (Transaction Resolution Protocol) HTTP service.
+Tx3 protocols via dynamic methods in the format `protocol.tx`. The server reads protocol definitions
+from `.tii` files at startup, validates incoming requests against each protocol's schema, and
+delegates transaction construction to an external TRP (Transaction Resolution Protocol) HTTP service.
 
 The server does not contain any protocol-specific logic. Adding a new protocol is as simple as
 dropping a `.tii` file into the `protocols/` directory and restarting the server.
@@ -28,11 +28,15 @@ All requests and responses follow **JSON-RPC 2.0** (`"jsonrpc": "2.0"`).
 
 ## Method
 
-### `apply_tx`
+### `<protocol>.<tx>`
 
-Single entry point for the entire API. Resolves the protocol from the TII registry, locates
-the requested transaction, validates the provided arguments, forwards the TIR to TRP, and
-returns the resulting unsigned transaction as CBOR hex.
+Dynamic methods in the format `protocol.tx` (e.g. `ticketing-2026.buy_ticket`). The server
+parses the method name to resolve the protocol from the TII registry and locate the requested
+transaction, validates the provided arguments, forwards the TIR to TRP, and returns the
+resulting unsigned transaction as CBOR hex.
+
+The network is configured at server startup via the `NETWORK` environment variable (defaults
+to `"mainnet"`), not per-request.
 
 #### Request
 
@@ -40,27 +44,20 @@ returns the resulting unsigned transaction as CBOR hex.
 {
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "apply_tx",
-  "params": {
-    "protocol": "<protocol-name>",
-    "network":  "<network>",
-    "tx":       "<transaction-name>",
-    "args":     { ... }
-  }
+  "method": "<protocol>.<tx>",
+  "params": { ... }
 }
 ```
 
-| Field             | Type     | Required | Description                                                                                                                    |
-|-------------------|----------|----------|--------------------------------------------------------------------------------------------------------------------------------|
-| `params.protocol` | `string` | yes      | Protocol identifier as declared in the TII file's `protocol.name` field (e.g. `"ticketing-2026"`).                             |
-| `params.network`  | `string` | no       | Network / profile name to activate. Defaults to `"mainnet"` if omitted. See [Profile Resolution](#profile-resolution). |
-| `params.tx`       | `string` | yes      | Name of the transaction to apply (e.g. `"buy_ticket"`).                                                                        |
-| `params.args`     | `object` | yes      | Flat key-value map of caller-supplied arguments. Profile defaults are applied first; `args` values override them.              |
+| Field    | Type     | Required | Description                                                                                                           |
+|----------|----------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `method` | `string` | yes      | `protocol.tx` format — protocol identifier + transaction name separated by a dot (e.g. `"ticketing-2026.buy_ticket"`). |
+| `params` | `object` | yes      | Flat key-value map of caller-supplied arguments. Profile defaults are applied first; `params` values override them.    |
 
-> **`args` is a flat object.** It combines parties, environment variables, and transaction
-> parameters in a single map. When a `network` is specified, the matching TII profile pre-fills
-> known values; the caller only needs to supply the remaining ones. All fields are validated
-> together against the combined schema before being forwarded to TRP.
+> **`params` is a flat object.** It combines parties, environment variables, and transaction
+> parameters in a single map. The server-configured network determines which TII profile is
+> activated; known values are pre-filled and the caller only needs to supply the remaining ones.
+> All fields are validated together against the combined schema before being forwarded to TRP.
 
 #### Response (success)
 
@@ -98,7 +95,8 @@ returns the resulting unsigned transaction as CBOR hex.
 
 ## Example Exchange
 
-Using the `ticketing-2026` protocol, `buy_ticket` transaction on `mainnet`.
+Using the `ticketing-2026` protocol, `buy_ticket` transaction. Server started with
+`NETWORK=mainnet` (or default).
 
 The `mainnet` profile pre-fills `issuer`, `treasury`, `issuer_beacon_policy`,
 `issuer_beacon_name`, `ticket_policy`, `issuer_script_ref`, and `ticket_price`
@@ -109,14 +107,9 @@ from the TII. The caller only needs to supply `buyer`.
 {
   "jsonrpc": "2.0",
   "id": 42,
-  "method": "apply_tx",
+  "method": "ticketing-2026.buy_ticket",
   "params": {
-    "protocol": "ticketing-2026",
-    "network":  "mainnet",
-    "tx":       "buy_ticket",
-    "args": {
-      "buyer": "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn648jjxtwq2ytjqp"
-    }
+    "buyer": "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn648jjxtwq2ytjqp"
   }
 }
 ```
@@ -154,14 +147,14 @@ from the TII. The caller only needs to supply `buyer`.
 |---------|--------------------|-----------------------------------------------------------------------------------|
 | -32700  | `ParseError`       | JSON payload could not be parsed.                                                 |
 | -32600  | `InvalidRequest`   | JSON-RPC envelope is malformed.                                                   |
-| -32601  | `MethodNotFound`   | Called method is not `apply_tx`.                                                  |
-| -32602  | `InvalidParams`    | Missing or wrong-type fields in the outer `params` object.                        |
+| -32601  | `MethodNotFound`   | Method format is invalid or could not be parsed as `protocol.tx`.                 |
+| -32602  | `InvalidParams`    | `params` is not a valid JSON object.                                              |
 | -32603  | `InternalError`    | Unexpected server error.                                                          |
-| -32000  | `ProtocolNotFound` | `params.protocol` does not match any loaded TII.                                  |
-| -32001  | `TxNotFound`       | `params.tx` does not match any transaction in the protocol.                       |
+| -32000  | `ProtocolNotFound` | Protocol name from the method does not match any loaded TII.                      |
+| -32001  | `TxNotFound`       | Transaction name from the method does not match any transaction in the protocol.  |
 | -32002  | `ArgsMismatch`     | Resolved args fail the combined schema check (after profile merge).               |
 | -32003  | `BuildError`       | TRP returned an error (e.g. insufficient UTxOs, bad amounts).                     |
-| -32004  | `NetworkNotFound`  | `params.network` was provided but does not match any profile in the TII.          |
+| -32004  | `NetworkNotFound`  | Server-configured network does not match any profile in the TII.                  |
 
 ---
 
@@ -203,8 +196,8 @@ TII file
 
 ## Profile Resolution
 
-When `params.network` is provided, the server applies the corresponding TII profile
-before validating and forwarding args.
+The server applies the TII profile corresponding to the configured `NETWORK` environment
+variable before validating and forwarding args.
 
 ### Merge order (lower index = lower priority)
 
@@ -212,7 +205,7 @@ before validating and forwarding args.
 |----------|---------------------------------|-----------------------------------------------|
 | 1 (base) | `profiles.<network>.environment`| `ticket_price: 500000000`, beacon policies... |
 | 1 (base) | `profiles.<network>.parties`    | `issuer: "addr1..."`, `treasury: "addr1..."` |
-| 2 (top)  | Caller-supplied `args`          | `buyer: "addr1..."` (overrides anything)      |
+| 2 (top)  | Caller-supplied `params`        | `buyer: "addr1..."` (overrides anything)      |
 
 Caller-provided values always win. This allows overriding a profile default when needed
 (e.g. using a custom treasury address in a test scenario).
@@ -230,8 +223,8 @@ contribute to satisfying required fields.
 
 ### Default network
 
-When `network` is omitted, the server defaults to `"mainnet"`. This is equivalent to
-explicitly passing `"network": "mainnet"` in the request.
+The network is configured at server startup via the `NETWORK` environment variable.
+When `NETWORK` is not set, the server defaults to `"mainnet"`.
 
 ---
 
@@ -239,13 +232,13 @@ explicitly passing `"network": "mainnet"` in the request.
 
 ### Level 1 — System Context 
 
-[![System Context](https://www.plantuml.com/plantuml/svg/RPB1RXen48Rl-nGJJbGYf6evHbN85XKg1Al5LHK9QMNiARLanYjxdCAj3v4dp9FKwmqfaN8Rs_FF__ctxm9Bp_5WGKskbIF68nTNXfID6k6sdDoKawRizxyKnNBwiFuXcfyBCM-Mis-prTVXXw9WmnPXSmgC1tXfXkU_Jo2Edw7oZfro5gRL0fRoXBueAlJ1qL1PWyGZ69Iv6AHAJziMd8SOqCEVtmu8KGTWjwLTD5Q390t1x0bAwRKa1-mb1QdOE0g31DDZ36LhqhZt0JgZxvlrwhgkIlWq_WZ9x17zU4ir1cSVCMJozYpK-CkGoGxPNwF5lMGCMxfmXnHVO1_x1JiGTJN-JzJCZZnattPKTGMRP6aKTYZYOaO6YBaySoUigLBOSZ87iQXXPzqkS_YUDeNYz_6G4WoZBNdaw3CeHEgIIkVb_Rg-32fZrMXVNw1FIxQjFJLyV9FF3So5gA1QRqHITQBStD_aXU1oTYT-LIHrDwYpkqFIwPyL_m00)]
+![System Context](001-assets/c4-context.svg)
 
 > Source [001-assets/c4-context.puml](001-assets/c4-context.puml)
 
 ### Level 2 — Containers
 
-[![Container Diagram](https://www.plantuml.com/plantuml/svg/RPJHRjCm58RlynI7NhLiQn7q4g5rMM51rHgbGGYfKkKcfvqrnpQsqoP2I3m4JyYJS9msMSRebIF_zl-Tyn_tsZfcN5a8oAPNcPAESOacUCLb9ieSuNqudOJJJTZkV0Y2nUpRyakw-HgbTvl5_DFy_dOu2WB7dK3eT73BsTwm0lxy-WrfzGvYevpAb81P7C62rMGIn6YiafjvvOQPu2ZT9Gp2PZ6WLJxJ6fG1o_UIopqScH3e1gDWLLk7HNFC6KtAD8bXXUR0C_G72UA0nbb8emGkW9cz1QUWbFucp26yMIRmW1LTrTvreqgPCrCFcUR-mly23qRm8m3wTLKEBRcYeHDtQNfY81bzigeiO099QPjIPbc6ce0-hvRtLqaSmjln6p3ulKJhx7WjOsOi4kG30XAxK1g1oHnoRZLpsGFjCQr5lN4LPDG6EoRsvoG6zzmwKtlwA8Ba_EdT8tbLOA5CtIDQA9PRU3rsdCEE2pBO6LLumqTW3avJeGbjNcdbsNJR3i_b39EMPOuh2KAfHrA-0A9emZPK7z1Ji5JuaGhlqQnGvgUu_0YIh74nQ9KuK60-mRMa27j1Zwb4LnffkpXV8DnkXosr9PCkq8--Nc_h5s2R2MZcT3pfz1E_lvJOQn5e6cjRQgsC8oW_8wtySYttI8xCRsnhwW-lO5joaNkedq6GeEX6l9kPDb9lrKt619fHYfUhb8xwSws-b_2fvq-PNFGJEHzxalURO3CcpyrbUIzfpz0K6KsM__ZsWzmfSsGcxxsiixWdEht9StZFmDftuekZGdtD_WrUK_hq3nJy1G00)]
+![Container Diagram](001-assets/c4-container.svg)
 
 > Source [001-assets/c4-container.puml](001-assets/c4-container.puml)
 
@@ -261,7 +254,7 @@ src/
 ├── rpc/
 │   ├── mod.rs
 │   ├── dispatcher.rs  # Parse JSON-RPC envelope, route to handler
-│   ├── handler.rs     # apply_tx: registry lookup → invoke → resolve → TRP
+│   ├── handler.rs     # invoke_tx: registry lookup → invoke → resolve → TRP
 │   └── error.rs       # RpcError enum, JSON serialisation, error codes
 └── registry/
     └── mod.rs         # TiiRegistry: scan *.tii files, key by protocol.name
@@ -340,8 +333,10 @@ All configuration is read from environment variables at startup.
 | Variable        | Default                   | Description                                                        |
 |-----------------|---------------------------|--------------------------------------------------------------------|
 | `TRP_URL`       | `http://localhost:3000`   | Endpoint passed to `tx3_sdk::trp::ClientOptions` at startup.      |
+| `TRP_HEADERS`   | *(not set)*               | HTTP headers for TRP, comma-separated `key=value` pairs (e.g. `dmtr-api-key=mykey`). Used when `TRP_URL` is set. |
 | `PROTOCOLS_DIR` | `./protocols`             | Directory scanned for `*.tii` files to populate the registry.     |
 | `PORT`          | `8080`                    | Port the API server listens on.                                    |
+| `NETWORK`       | `mainnet`                 | Network / profile name to activate for all requests.               |
 
 ---
 
@@ -369,12 +364,12 @@ upstream version bump or refactor can silently remove a type your code depends o
 ```
 1.  Receive POST /
 2.  Deserialize JSON-RPC envelope
-3.  Assert method == "apply_tx"                         → MethodNotFound if not
-4.  Extract (protocol, tx, args) from params; network defaults to "mainnet" if absent
+3.  Parse method as "protocol.tx"                       → MethodNotFound if invalid format
+4.  Extract params as flat args object                  → InvalidParams if not an object
 5.  registry.get(protocol)                              → ProtocolNotFound if missing
 6.  protocol.invoke(tx, Some(network))                  → TxNotFound | NetworkNotFound if missing
-         (tx3-sdk: tx lookup + profile merge in one call)
-7.  invocation.with_args(caller_args)
+         (tx3-sdk: tx lookup + profile merge; network from NETWORK env var)
+7.  invocation.with_args(params)
 8.  invocation.into_resolve_request()                   → ResolveParams
 9.  trp_client.resolve(resolve_params)                  → BuildError on TRP failure
 10. Return { "result": { "tx": envelope.cbor_hex } }
