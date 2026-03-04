@@ -22,6 +22,28 @@ All configuration is read from environment variables at startup.
 | `TRP_URL`       | *(not set)*    | Override the TRP endpoint (uses Demeter public endpoints by default). |
 | `TRP_HEADERS`   | *(not set)*    | HTTP headers for the TRP endpoint, comma-separated `key=value` pairs (e.g. `dmtr-api-key=mykey`). Used when `TRP_URL` is set. |
 
+## API Discovery (OpenRPC)
+
+The server implements [OpenRPC 1.4.1](https://spec.open-rpc.org/) for runtime API discovery. The spec is generated dynamically from the loaded `.tii` files — no manual updates needed.
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /` with method `rpc.discover` | Returns the full OpenRPC document via JSON-RPC |
+| `GET /openrpc.json` | Returns the OpenRPC document as plain HTTP |
+| `GET /docs` | Redirects to the interactive [OpenRPC Playground](https://playground.open-rpc.org/) |
+
+**Discover available methods:**
+
+```bash
+curl http://localhost:8080/openrpc.json
+```
+
+**Open interactive docs:**
+
+```
+http://localhost:8080/docs
+```
+
 ## Usage
 
 Methods follow the format `<protocol>.<tx>`. Parameters are the transaction arguments directly.
@@ -71,7 +93,7 @@ docker run --rm \
   plantuml/plantuml -tsvg /data/c4-context.puml /data/c4-container.puml
 ```
 
-See [design/001-api-scaffolding-spec.md](design/001-api-scaffolding-spec.md) for the full specification.
+See [design/001-api-scaffolding-spec.md](design/001-api-scaffolding-spec.md) for the scaffolding specification and [design/002-openrpc-discovery-spec.md](design/002-openrpc-discovery-spec.md) for the OpenRPC discovery specification.
 
 ## Development
 
