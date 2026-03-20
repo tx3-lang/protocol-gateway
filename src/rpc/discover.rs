@@ -404,13 +404,16 @@ pub async fn openrpc_handler(
 }
 
 pub async fn docs_redirect(Path(protocol_name): Path<String>) -> impl IntoResponse {
-    let port = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(8080);
+    let base_url = std::env::var("PUBLIC_URL").unwrap_or_else(|_| {
+        let port = std::env::var("PORT")
+            .ok()
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(8080);
+        format!("http://localhost:{port}")
+    });
 
     let url = format!(
-        "https://playground.open-rpc.org/?schemaUrl=http://localhost:{port}/{protocol_name}/openrpc.json"
+        "https://playground.open-rpc.org/?schemaUrl={base_url}/{protocol_name}/openrpc.json"
     );
 
     axum::response::Redirect::temporary(&url)
