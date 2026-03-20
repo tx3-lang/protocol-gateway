@@ -1,6 +1,6 @@
 # Tx3 Protocol API Layer
 
-JSON-RPC 2.0 server that dynamically exposes [Tx3](https://github.com/tx3-lang/tx3) protocols. Drop a `.tii` file into `protocols/`, restart the server, and the protocol's transactions become available as RPC methods.
+JSON-RPC 2.0 server that dynamically exposes [Tx3](https://github.com/tx3-lang/tx3) protocols. Drop a `.tii` file into `protocols/`, restart the server, and the protocol's transactions become available as RPC methods under a protocol-specific endpoint.
 
 ## Quick start
 
@@ -22,41 +22,53 @@ All configuration is read from environment variables at startup.
 | `TRP_URL`       | *(not set)*    | Override the TRP endpoint (uses Demeter public endpoints by default). |
 | `TRP_HEADERS`   | *(not set)*    | HTTP headers for the TRP endpoint, comma-separated `key=value` pairs (e.g. `dmtr-api-key=mykey`). Used when `TRP_URL` is set. |
 
+## Routing
+
+Each protocol gets its own namespace under `/{protocol}`:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | List all available protocols |
+| `POST /{protocol}` | JSON-RPC 2.0 endpoint for a specific protocol |
+| `POST /{protocol}` with method `rpc.discover` | Returns the OpenRPC document for the protocol via JSON-RPC |
+| `GET /{protocol}/openrpc.json` | Returns the OpenRPC document as plain HTTP |
+| `GET /{protocol}/docs` | Redirects to the interactive [OpenRPC Playground](https://playground.open-rpc.org/) |
+
 ## API Discovery (OpenRPC)
 
 The server implements [OpenRPC 1.4.1](https://spec.open-rpc.org/) for runtime API discovery. The spec is generated dynamically from the loaded `.tii` files — no manual updates needed.
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /` with method `rpc.discover` | Returns the full OpenRPC document via JSON-RPC |
-| `GET /openrpc.json` | Returns the OpenRPC document as plain HTTP |
-| `GET /docs` | Redirects to the interactive [OpenRPC Playground](https://playground.open-rpc.org/) |
-
-**Discover available methods:**
+**List available protocols:**
 
 ```bash
-curl http://localhost:8080/openrpc.json
+curl http://localhost:8080/
+```
+
+**Discover available methods for a protocol:**
+
+```bash
+curl http://localhost:8080/ticketing-2026/openrpc.json
 ```
 
 **Open interactive docs:**
 
 ```
-http://localhost:8080/docs
+http://localhost:8080/ticketing-2026/docs
 ```
 
 ## Usage
 
-Methods follow the format `<protocol>.<tx>`. Parameters are the transaction arguments directly.
+Each protocol has its own endpoint at `/{protocol}`. Methods are the transaction names directly — no need to prefix with the protocol name.
 
 **Example request:**
 
 ```bash
-curl -X POST http://localhost:8080 \
+curl -X POST http://localhost:8080/ticketing-2026 \
   -H 'Content-Type: application/json' \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
-    "method": "ticketing-2026.buy_ticket",
+    "method": "buy_ticket",
     "params": {
       "buyer": "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3jcu5d8ps7zex2k2xt3uqxgjqnnj83ws8lhrn648jjxtwq2ytjqp"
     }

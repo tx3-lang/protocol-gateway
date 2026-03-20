@@ -10,9 +10,10 @@ use crate::rpc::handler::AppState;
 
 pub fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/", post(dispatcher::dispatch))
-        .route("/openrpc.json", get(discover::openrpc_handler))
-        .route("/docs", get(discover::docs_redirect))
+        .route("/", get(discover::list_protocols))
+        .route("/{protocol}", post(dispatcher::dispatch))
+        .route("/{protocol}/openrpc.json", get(discover::openrpc_handler))
+        .route("/{protocol}/docs", get(discover::docs_redirect))
         .with_state(state)
         .layer(
             CorsLayer::new()
