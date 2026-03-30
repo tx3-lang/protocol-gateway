@@ -148,10 +148,12 @@ tx add_stake(
     owner_pkh: Bytes,
     staking_utxo: UtxoRef,
     additional_amount: Int,
+    staked_at_time: Int,
 ) {
     locals {
         owner_nft: AnyAsset(mint_policy_id, owner_pkh, 1),
         extra_strike: AnyAsset(staking_policy_id, staking_asset_name, additional_amount),
+        credential_policy: mint_policy_id,
     }
 
     reference spend_script {
@@ -176,7 +178,9 @@ tx add_stake(
         to: StakingScript,
         amount: current_stake + extra_strike,
         datum: StakingDatum {
-            ...current_stake
+            owner_address_hash: owner_pkh,
+            staked_at: staked_at_time,
+            mint_policy_id: credential_policy,
         },
     }
 
