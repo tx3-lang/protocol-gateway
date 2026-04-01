@@ -1,0 +1,13 @@
+{
+  "user": "addr1qxedpq6fw09r7f4wu8cp9sd57q7vphxedf0zn8rzh6uxydluy3ncf0haddh9k75y4s07kz4f7t2c0jr8fg8new2s7p3ssvju2w",
+  "positionscript": "addr1w96x2c007xj3r0ynfnphfa5rtdhr805mj253lsh49pd9uxsgrmmh7",
+  "user_pkh": "b2d0834973ca3f26aee1f012c1b4f03cc0dcd96a5e299c62beb86237",
+  "user_stake_key": "fc246784befd6b6e5b7a84ac1feb0aa9f2d587c8674a0f3cb950f063",
+  "project_outref_tx": "26ec44025427fa2624d0ef8a13f7e4f0df7f9d643e61ed2c5c3057d6586104ae",
+  "project_outref_idx": 3,
+  "envelope_amount": 2000000,
+  "share_amount": 100,
+  "batcher_fee_amount": 700000,
+  "admin_fee_percent": 200,
+  "unit_price": 500000
+}
