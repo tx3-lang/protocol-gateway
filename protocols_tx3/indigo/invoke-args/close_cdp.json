@@ -1,0 +1,21 @@
+{
+    "user": "addr1q8hahf4eszjt089a7m4uxezg6l6qsjhlc38y87mhdxsya7lzvhy059jgfl9snaewatuc4faqmktmqfpl9ppxaqfz7a4srqp2xm",
+    "cdpuseraddr": "addr1zyyqtkz5rken7jzptp076np606r79lmsrqjrqw8sdn4kvr8zvhy059jgfl9snaewatuc4faqmktmqfpl9ppxaqfz7a4sedd06u",
+    "owner_pkh": "efdba6b980a4b79cbdf6ebc36448d7f4084affc44e43fb7769a04efb",
+    "iasset_name": "69555344",
+    "cdp_utxo": "0e07367c6082f470f6a202373f3f87e68f02ca93b3283190166a65db018b5069#1",
+    "collector_utxo": "437e24fe2564839b2e76d1c98436d2ca94e9c2d18079562dcbbe4905dab05c6f#2",
+    "stability_pool_utxo": "a197bd813a8f49f138672f902a862c4132a11080ef86f45ec2168235848e227c#3",
+    "staking_utxo": "9ce655ebea27f8a135ff5c93d7f1f1646cda2403800f00976e8ef896010bd52f#1",
+    "burn_amount": 126190111,
+    "pool_iasset": "69555344",
+    "sp_snapshot_p": 0,
+    "sp_snapshot_d": 0,
+    "sp_snapshot_s": 0,
+    "sp_snapshot_epoch": 0,
+    "sp_snapshot_scale": 0,
+    "oracle_utxo": "be17406bfc5d6436f0f53a63bbedd51bae2a60b62ef4f16946a9a31625241f3a#0",
+    "iasset_config_utxo": "48432f3e0ba8c29e8e12e0db1e1beee025ac2ed1b809be817aec1163120940de#0",
+    "cdp_manager_utxo": "068dff944277f0a4e73b40f710e652c7f600ba780c21b41a78d455eb45cd7dc4#0",
+    "timestamp_ms": 1774014476000
+}

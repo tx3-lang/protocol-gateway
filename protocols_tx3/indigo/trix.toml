@@ -1,0 +1,9 @@
+[protocol]
+name = "indigo"
+scope = ""
+version = "0.0.0"
+description = ""
+main = "main.tx3"
+
+[ledger]
+family = "cardano"
