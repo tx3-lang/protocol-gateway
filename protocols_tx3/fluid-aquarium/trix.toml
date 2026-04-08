@@ -1,0 +1,10 @@
+[protocol]
+name = "fluid-aquarium"
+scope = ""
+version = "0.0.0"
+description = "Babel fees and scheduled transactions on Cardano by FluidTokens"
+main = "main.tx3"
+
+[ledger]
+family = "cardano"
+
