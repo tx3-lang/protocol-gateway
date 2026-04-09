@@ -1,0 +1,11 @@
+{
+    "user": "addr1q93k6rgprz5fxwkpvl2vgjq4pwejth400f8aldz2m3lj7khrnd05p259l0qjrf396am6wahv5895ey35y62fexta3q5q3cc3k8",
+    "orderscript": "addr1wykq7svdj3ys97tyyn9uv55r5x9azmef8p4yjy4a50v0r7qmspxts",
+    "user_creds": "636d0d0118a8933ac167d4c448150bb325deaf7a4fdfb44adc7f2f5ae39b5f40aa85fbc121a625d777a776eca1cb4c923426949c997d8828",
+    "lp_policy": "630e29291e9701aa47fbc22892333ed70975fe9f03d23d92ddb1c0f0",
+    "lp_name": "567946695f4144412f534e454b5f4c50",
+    "lp_amount": 50000,
+    "min_out_ada": 100000000,
+    "min_out_token": 50000,
+    "order_ada": 3900000
+}
