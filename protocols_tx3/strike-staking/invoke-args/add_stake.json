@@ -1,0 +1,7 @@
+{
+  "staker": "addr1qyzvvlj4d4rte6fkal0jmthpmq4qxayynfm2u5qkxxw7kauhrak4m7z3wtkunk0yvcrx0f4w0zdtnsmek7576lggsewqwzc6f7",
+  "owner_pkh": "04c67e556d46bce936efdf2daee1d82a0374849a76ae5016319deb77",
+  "staking_utxo": "fc86409d1d99323e31dcff833ade98722c4ba8ef5a52e465b738114dfc1a4a74#0",
+  "additional_amount": 10000000,
+  "staked_at_time": 1766349783146
+}

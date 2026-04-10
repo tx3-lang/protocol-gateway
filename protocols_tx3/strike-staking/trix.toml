@@ -1,0 +1,10 @@
+[protocol]
+name = "strike-staking"
+scope = "strike-finance"
+version = "0.1.0"
+description = "STRIKE token staking with ADA rewards on Cardano"
+main = "main.tx3"
+readme = "README.md"
+
+[ledger]
+family = "cardano"

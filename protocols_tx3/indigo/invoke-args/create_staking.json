@@ -1,0 +1,12 @@
+{
+    "user": "addr1q80na57rg5cwm33px9yyz29dw0z2y44gjaxk55hvs3dkfmwg0he8r08cf5afnq0xvake5acg6gd5v7mqy36ej8xe24asrp99kv",
+    "owner_pkh": "df3ed3c34530edc62131484128ad73c4a256a8974d6a52ec845b64ed",
+    "indy_amount": 1000000,
+    "indy_policy_id": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0",
+    "indy_asset_name": "494e4459",
+    "staking_token_policy_id": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0",
+    "staking_token_name": "7374616b696e675f746f6b656e",
+    "manager_utxo": "9ce655ebea27f8a135ff5c93d7f1f1646cda2403800f00976e8ef896010bd52f#1",
+    "collector_utxo": "437e24fe2564839b2e76d1c98436d2ca94e9c2d18079562dcbbe4905dab05c6f#2",
+    "cdpuseraddr": "addr1zyyqtkz5rken7jzptp076np606r79lmsrqjrqw8sdn4kvr85y9cl3un0cnt335t969c08rhf8j8evuyqkgxw98l26n5sge99dq"
+}

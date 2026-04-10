@@ -38,7 +38,7 @@ impl RpcError {
     pub fn method_not_found(method: &str) -> Self {
         Self {
             code: METHOD_NOT_FOUND,
-            message: format!("method '{method}' not found; expected format 'protocol.tx'"),
+            message: format!("method '{method}' not found"),
             data: None,
         }
     }

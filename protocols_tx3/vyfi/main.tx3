@@ -1,0 +1,224 @@
+// VyFi DEX — AMM Order Submission Protocol
+//
+// Two-step DEX model:
+// 1. User submits order → sends funds + datum to order script address (no scripts executed)
+// 2. Batcher processes order → consumes order + pool, distributes results (VyFi infra)
+//
+// This tx3 implements the USER-FACING transactions only (step 1 + cancel).
+// Each pool has its own order address — provided per-call as a dynamic party.
+//
+// Pool data source: GET https://api.vyfi.io/lp?networkId=1
+
+// --- Parties ---
+
+// The user submitting the order
+party User;
+
+// Order script address (per-pool, provided per-call)
+party OrderScript;
+
+// --- Environment ---
+
+env {
+    // Process fee charged by VyFi batchers (1.9 ADA)
+    process_fee: Int,
+}
+
+// --- Types ---
+
+// Order datum submitted to the order script address
+// On-chain: Constr(0, [Bytes, OrderType])
+type OrderDatum {
+    // User's payment credential (28 bytes) + staking credential (28 bytes)
+    od_user_creds: Bytes,
+    // Order type (swap, add/remove liquidity)
+    od_order_type: OrderType,
+}
+
+// --- Order Type variants ---
+// Constructor indices must match on-chain:
+//   0 = AddLiquidity
+//   1 = RemoveLiquidity
+//   2 = (reserved/unknown)
+//   3 = SwapAToB (ADA → Token)
+//   4 = SwapBToA (Token → ADA)
+
+type OrderType {
+    AddLiquidity { min_lp_tokens: Int, },
+    RemoveLiquidity { rl_min_amounts: RemoveLiqMinAmounts, },
+    OrderType2 {},
+    SwapAToB { min_receive_b: Int, },
+    SwapBToA { min_receive_a: Int, },
+}
+
+// Minimum amounts for remove liquidity
+// On-chain: Constr(0, [Int, Int])
+type RemoveLiqMinAmounts {
+    min_ada: Int,
+    min_token_b: Int,
+}
+
+// --- Transactions ---
+
+// Swap ADA for Token (A → B)
+// User sends ADA to the order address with swap datum
+tx swap_a_to_b(
+    // User credentials: payment_cred (28 bytes) || stake_cred (28 bytes)
+    user_creds: Bytes,
+    // Amount of ADA (lovelace) to swap
+    swap_amount: Int,
+    // Minimum amount of token B to receive
+    min_out: Int,
+) {
+    input source {
+        from: User,
+        min_amount: Ada(swap_amount + process_fee) + fees,
+    }
+
+    output {
+        to: OrderScript,
+        amount: Ada(swap_amount + process_fee),
+        datum: OrderDatum {
+            od_user_creds: user_creds,
+            od_order_type: OrderType::SwapAToB {
+                min_receive_b: min_out,
+            },
+        },
+    }
+
+    output {
+        to: User,
+        amount: source - Ada(swap_amount + process_fee) - fees,
+    }
+}
+
+// Swap Token for ADA (B → A)
+// User sends tokens + min ADA to the order address with swap datum
+tx swap_b_to_a(
+    // User credentials: payment_cred (28 bytes) || stake_cred (28 bytes)
+    user_creds: Bytes,
+    // Token B policy ID
+    token_policy: Bytes,
+    // Token B asset name
+    token_name: Bytes,
+    // Amount of token B to swap
+    token_amount: Int,
+    // Minimum amount of ADA (lovelace) to receive
+    min_out: Int,
+    // ADA to attach to order UTxO (min UTxO + process fee)
+    order_ada: Int,
+) {
+    locals {
+        swap_tokens: AnyAsset(token_policy, token_name, token_amount),
+    }
+
+    input source {
+        from: User,
+        min_amount: Ada(order_ada) + swap_tokens + fees,
+    }
+
+    output {
+        to: OrderScript,
+        amount: Ada(order_ada) + swap_tokens,
+        datum: OrderDatum {
+            od_user_creds: user_creds,
+            od_order_type: OrderType::SwapBToA {
+                min_receive_a: min_out,
+            },
+        },
+    }
+
+    output {
+        to: User,
+        amount: source - Ada(order_ada) - swap_tokens - fees,
+    }
+}
+
+// Add liquidity to a pool
+// User sends ADA + tokens to the order address
+tx add_liquidity(
+    // User credentials: payment_cred (28 bytes) || stake_cred (28 bytes)
+    user_creds: Bytes,
+    // Amount of ADA (lovelace) to deposit
+    ada_amount: Int,
+    // Token B policy ID
+    token_policy: Bytes,
+    // Token B asset name
+    token_name: Bytes,
+    // Amount of token B to deposit
+    token_amount: Int,
+    // Minimum LP tokens to receive
+    desired_lp: Int,
+) {
+    locals {
+        deposit_tokens: AnyAsset(token_policy, token_name, token_amount),
+    }
+
+    input source {
+        from: User,
+        min_amount: Ada(ada_amount + process_fee) + deposit_tokens + fees,
+    }
+
+    output {
+        to: OrderScript,
+        amount: Ada(ada_amount + process_fee) + deposit_tokens,
+        datum: OrderDatum {
+            od_user_creds: user_creds,
+            od_order_type: OrderType::AddLiquidity {
+                min_lp_tokens: desired_lp,
+            },
+        },
+    }
+
+    output {
+        to: User,
+        amount: source - Ada(ada_amount + process_fee) - deposit_tokens - fees,
+    }
+}
+
+// Remove liquidity from a pool
+// User sends LP tokens to the order address
+tx remove_liquidity(
+    // User credentials: payment_cred (28 bytes) || stake_cred (28 bytes)
+    user_creds: Bytes,
+    // LP token policy ID
+    lp_policy: Bytes,
+    // LP token asset name
+    lp_name: Bytes,
+    // Amount of LP tokens to burn
+    lp_amount: Int,
+    // Minimum ADA (lovelace) to receive back
+    min_out_ada: Int,
+    // Minimum token B to receive back
+    min_out_token: Int,
+    // ADA to attach to order UTxO (min UTxO + process fee)
+    order_ada: Int,
+) {
+    locals {
+        lp_tokens: AnyAsset(lp_policy, lp_name, lp_amount),
+    }
+
+    input source {
+        from: User,
+        min_amount: Ada(order_ada) + lp_tokens + fees,
+    }
+
+    output {
+        to: OrderScript,
+        amount: Ada(order_ada) + lp_tokens,
+        datum: OrderDatum {
+            od_user_creds: user_creds,
+            od_order_type: OrderType::RemoveLiquidity {
+                rl_min_amounts: RemoveLiqMinAmounts {
+                    min_ada: min_out_ada,
+                    min_token_b: min_out_token,
+                },
+            },
+        },
+    }
+
+    output {
+        to: User,
+        amount: source - Ada(order_ada) - lp_tokens - fees,
+    }
+}

@@ -61,7 +61,8 @@ impl TiiRegistry {
         self.protocols.get(name)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&String, &Protocol)> {
-        self.protocols.iter()
+    pub fn names(&self) -> impl Iterator<Item = &String> {
+        self.protocols.keys()
     }
+
 }
