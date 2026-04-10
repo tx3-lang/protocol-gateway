@@ -1,9 +1,10 @@
 [protocol]
 name = "vyfi"
-scope = ""
-version = "0.0.0"
+scope = "vyfi"
+version = "0.1.0"
 description = "VyFi DEX - AMM order submission protocol"
 main = "main.tx3"
+readme = "README.md"
 
 [ledger]
 family = "cardano"
