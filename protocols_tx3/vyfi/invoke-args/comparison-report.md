@@ -4,6 +4,7 @@
 
 | Type | TX Hash | Pool |
 |------|---------|------|
+| Swap order submission (ADA→SNEK) | `db08967b2d6bd2b10d8c3ae072f9768fd24220639bbdc1fd95d1f54ea89f0b56` | ADA/SNEK |
 | Swap order submission (SNEK→ADA) | `94eee7c4678c2ef90e65ad13cac0ffee6f6a5507397ffb7c31eecc7bdae1707b` | ADA/SNEK |
 | Swap execution (batcher) | `bee950d8767ffae7b0ee6d92279e447cad5c7f569f3715cac4cc196d6e39d7b3` | ADA/SNEK |
 | Order cancellation | `34a41f7f12bbb280a476d52f3802aabdd8575cfe96c277c3d7b866302a12d3b0` | ADA/SNEK |
@@ -28,6 +29,35 @@
 - Balance: ~264,572 ADA
 
 ## Datum Comparison
+
+### swap_a_to_b vs on-chain (db08967b)
+
+**On-chain order datum** (from order submission db08967b):
+```
+Constr(0, [
+  Bytes("563e7c47b132925519e288732063410b4ae536bdde116cb63d5e7d9c47cf89886889a96dd2344ee2360897337b64dfcb605499e79082a39c"),
+  Constr(3, [189858])
+])
+```
+
+**Generated datum:**
+```
+Constr(0, [
+  Bytes("636d0d0118a8933ac167d4c448150bb325deaf7a4fdfb44adc7f2f5ae39b5f40aa85fbc121a625d777a776eca1cb4c923426949c997d8828"),
+  Constr(3, [500000])
+])
+```
+
+Result: **100% structural match**. Only `user_creds` and `min_receive_b` differ (different users/amounts).
+
+### Order output comparison (swap_a_to_b)
+
+| Field | On-chain (db08967b) | Generated (swap_a_to_b) |
+|-------|---------------------|------------------------|
+| Address | `712c0f418d...` (order script) | `712c0f418d...` (same) |
+| ADA | 347,146,228 lovelace | 101,900,000 lovelace |
+| Tokens | none | none |
+| Datum | datum_hash | inline datum |
 
 ### swap_b_to_a vs on-chain (94eee7c4)
 
