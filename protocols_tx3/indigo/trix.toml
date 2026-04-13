@@ -1,6 +1,6 @@
 [protocol]
 name = "indigo"
-scope = "indigo-protocol"
+scope = "indigoprotocol"
 version = "0.1.0"
 description = "Synthetic assets (iAssets) on Cardano via CDPs, Stability Pools, and INDY staking"
 main = "main.tx3"
