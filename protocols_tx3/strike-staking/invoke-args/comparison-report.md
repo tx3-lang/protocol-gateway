@@ -1,6 +1,6 @@
 # Strike-Staking: CBOR Comparison Report
 
-Generated 2026-03-30. Compares transactions built by `trix invoke --profile mainnet --skip-submit` against real on-chain transactions from the active Strike Finance staking contract (`497a8b0085517f1c9065cf3006af4c266454b39c6fa32a9d116c75ee`).
+Generated 2026-04-13 (updated). Compares transactions built by `trix invoke --profile mainnet --skip-submit` against real on-chain transactions from the active Strike Finance staking contract (`497a8b0085517f1c9065cf3006af4c266454b39c6fa32a9d116c75ee`).
 
 ## Reference Transactions (real on-chain)
 
@@ -14,18 +14,18 @@ Generated 2026-03-30. Compares transactions built by `trix invoke --profile main
 
 | Operation | Tx Hash (unsigned) | Args File |
 |-----------|--------------------|-----------|
-| stake | `0139933da5ca48a317c8754aa8b2729fb360ecb924ed4a5e0c956561181d4954` | `stake.json` |
-| add_stake | `1b20ed39974d889164c7eec8b578dd19ffac3b171ccb4048b7fb2b3d8fe82775` | `add_stake.json` |
-| withdraw_stake | `09c99128bd9fbd87e4f6b58e556825af0d39658bd0141300e440981ad66f6339` | `withdraw_stake.json` |
+| stake | `9e72ffd4409c59403905092ce8184f1932bac3f77dad2573d0db527f5ac7b536` | `stake.json` |
+| add_stake | `4728e6e53f7eb2c586daab2e89fd9a7862b4213383c855d045ba3efbdc7ee9e1` | `add_stake.json` |
+| withdraw_stake | `0af5af139784d96c66da5803f92ed83c0b9eefc98832342a997324e7297ea495` | `withdraw_stake.json` |
 
 ## Test Wallet
 
 All invocations used a real mainnet wallet that holds the required assets:
 
-- **Address:** `addr1qyzvvlj4d4rte6fkal0jmthpmq4qxayynfm2u5qkxxw7kauhrak4m7z3wtkunk0yvcrx0f4w0zdtnsmek7576lggsewqwzc6f7`
-- **Payment credential:** `04c67e556d46bce936efdf2daee1d82a0374849a76ae5016319deb77`
-- **Assets:** Owner NFT + tracker token + ~500M STRIKE + ~62 ADA
-- **Staking UTxO (at script):** `fc86409d1d99323e31dcff833ade98722c4ba8ef5a52e465b738114dfc1a4a74#0` (9.5B STRIKE staked)
+- **Address:** `addr1q8gq48ux6xp3p34r58t2pgv4u0lgc0uxulhs9n9k843z0eey3y5c5t4s9eedc645ql56qar2jtezrutfrtz4tuz2zz0sl7dkak`
+- **Payment credential:** `d00a9f86d18310c6a3a1d6a0a195e3fe8c3f86e7ef02ccb63d6227e7`
+- **Assets:** ~15,230 STRIKE + ~95,772 ADA in wallet
+- **Staking UTxO (at script):** `8530244324dfbe1dda2ea12c83025fff1462ad6ec658bf33e8a54d78c627213f#16` (~19,013 STRIKE staked)
 
 ## Structural Comparison
 
@@ -36,10 +36,10 @@ All invocations used a real mainnet wallet that holds the required assets:
 | Body fields (structural) | inputs, outputs, fee, ttl, mint, script_data_hash, collateral, required_signers, collateral_return, total_collateral | inputs, outputs, fee, ttl, mint, script_data_hash, collateral, required_signers, network_id, reference_inputs | see notes |
 | Output count | 2 (script + change) | 2 (script + change) | YES |
 | Output[0] destination | staking script address | staking script address | YES |
-| Output[0] tokens | tracker(1) + STRIKE(staked_amount) | tracker(1) + STRIKE(staked_amount) | YES |
+| Output[0] tokens | tracker(1) + owner_nft(1) + STRIKE(staked_amount) | tracker(1) + owner_nft(1) + STRIKE(staked_amount) | YES |
 | Output[0] datum | StakingDatum (3 fields) | StakingDatum (3 fields) | YES |
 | Output[1] destination | staker wallet | staker wallet | YES |
-| Output[1] tokens | owner NFT(1) + change STRIKE | owner NFT(1) + change STRIKE | YES |
+| Output[1] tokens | change STRIKE | change STRIKE | YES |
 | Mint | tracker(+1) + owner_nft(+1) | tracker(+1) + owner_nft(+1) | YES |
 | Mint redeemer | `Constr(0, [amount])` | `Constr(0, [amount])` | YES |
 | Required signers | 1 (owner_pkh) | 1 (owner_pkh) | YES |
@@ -101,6 +101,7 @@ All redeemers match the on-chain contract exactly:
 
 ## Notes
 
+- **Owner NFT stays in the script (2026-04-13 fix):** The on-chain contract requires the owner NFT to be locked in the script UTxO, not held in the staker's wallet. This was confirmed by inspecting the Aiken source (`validators/staking.ak`) and verified against all 3 reference transactions. The `main.tx3` was corrected: `stake` now sends the owner NFT to the script output, and `add_stake`/`withdraw_stake` no longer require the owner NFT in the staker's `source` input.
 - The `add_stake` transaction required a workaround: the datum spread syntax (`...current_stake`) caused a TRP error (`property index 0 not found in None`). The fix was to replace it with explicit datum fields and pass `staked_at_time` as an additional parameter.
 - The `main.tx3` protocol matches the active contract (PlutusV3, script hash `497a8b...`) as published on the Strike Finance GitHub repository.
 - All environment values (policy IDs, reference script UTxO, script address) are loaded from `.env.mainnet` via the built-in mainnet profile.

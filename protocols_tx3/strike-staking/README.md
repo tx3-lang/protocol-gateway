@@ -6,7 +6,7 @@ tx3 protocol for [Strike Finance](https://github.com/strike-finance/staking-smar
 
 ## Overview
 
-Strike Finance allows users to lock STRIKE tokens in a staking contract and earn ADA rewards. On initial stake, a credential NFT pair (tracker token + owner identifier NFT) is minted. The tracker is locked in the script and the owner NFT is returned to the staker as proof of ownership.
+Strike Finance allows users to lock STRIKE tokens in a staking contract and earn ADA rewards. On initial stake, a credential NFT pair (tracker token + owner identifier NFT) is minted. Both tokens are locked in the script UTxO — the owner NFT is **not** returned to the staker's wallet. Ownership is proven via the required signer matching the `owner_address_hash` in the datum.
 
 ## Transactions
 
@@ -20,7 +20,7 @@ Strike Finance allows users to lock STRIKE tokens in a staking contract and earn
 
 - **Network profile required:** The `env` block references on-chain addresses, policy IDs, and reference script UTxOs that must be configured per network (mainnet/testnet) in the trix profile.
 - **Reference scripts:** Both spend and mint validators are consumed via reference scripts (`spend_script_ref`, `mint_script_ref`). These UTxOs must exist on-chain and be correctly referenced.
-- **Owner NFT:** The `add_stake` and `withdraw_stake` transactions require the staker to hold their owner NFT (minted with their payment key hash as asset name).
+- **Owner NFT:** The owner NFT (minted with the staker's payment key hash as asset name) is locked in the script UTxO alongside the tracker token. It is **not** held in the staker's wallet. The `add_stake` transaction preserves it in the script output; `withdraw_stake` burns it.
 - **Collateral:** All transactions require 5 ADA collateral from the staker.
 - **Validity window:** The `stake` transaction uses a validity window of `tip_slot() + 200`.
 
@@ -37,8 +37,7 @@ Strike Finance allows users to lock STRIKE tokens in a staking contract and earn
 
 ### `withdraw_stake`
 
-- `staking_utxo: UtxoRef` — The staking position UTxO to withdraw from.
-- The staker must hold the owner NFT (minted with their payment key hash as asset name).
+- `staking_utxo: UtxoRef` — The staking position UTxO to withdraw from. The owner NFT and tracker token are burned from the script input.
 
 ## tx3 Limitations
 

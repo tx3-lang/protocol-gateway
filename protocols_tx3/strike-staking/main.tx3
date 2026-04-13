@@ -108,10 +108,10 @@ tx stake(
         redeemer: MintRedeemer::Mint { amount: stake_amount, },
     }
 
-    // New staking UTxO at the script address
+    // New staking UTxO at the script address (includes owner NFT locked in script)
     output stake_utxo {
         to: StakingScript,
-        amount: min_utxo(stake_utxo) + strike + tracker_token,
+        amount: min_utxo(stake_utxo) + strike + tracker_token + owner_nft,
         datum: StakingDatum {
             owner_address_hash: owner_pkh,
             staked_at: staked_at_time, // (slot_to_time(tip_slot()) + 200),
@@ -119,10 +119,10 @@ tx stake(
         },
     }
 
-    // Owner NFT + leftover ADA/change back to staker
+    // Leftover ADA/change back to staker
     output {
         to: Staker,
-        amount: source - fees - min_utxo(stake_utxo) - strike + owner_nft,
+        amount: source - fees - min_utxo(stake_utxo) - strike,
     }
 
     collateral {
@@ -167,13 +167,13 @@ tx add_stake(
         redeemer: StakingRedeemer::AddStakeOrConsumeStakingRewards {},
     }
 
-    // Staker provides more STRIKE + fees, must hold the owner NFT
+    // Staker provides more STRIKE + fees
     input* source {
         from: Staker,
-        min_amount: fees + extra_strike + owner_nft,
+        min_amount: fees + extra_strike,
     }
 
-    // Updated staking UTxO: same datum, more STRIKE
+    // Updated staking UTxO: same datum, more STRIKE (owner NFT preserved from input)
     output {
         to: StakingScript,
         amount: current_stake + extra_strike,
@@ -233,13 +233,13 @@ tx withdraw_stake(
         redeemer: StakingRedeemer::WithdrawStake {},
     }
 
-    // Staker must hold their owner NFT + provide ADA for fees
+    // Staker provides ADA for fees
     input* source {
         from: Staker,
-        min_amount: fees + owner_nft,
+        min_amount: fees,
     }
 
-    // Burn both credential tokens
+    // Burn both credential tokens (both come from the script input)
     burn {
         amount: tracker_token + owner_nft,
         redeemer: MintRedeemer::Burn { owner_address_hash: owner_pkh, },
