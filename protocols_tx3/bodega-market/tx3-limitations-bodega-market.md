@@ -1,6 +1,6 @@
 # TX3 Limitations Found During Bodega Market Implementation
 
-Discovered with trix 0.21.1 (2026-03-13).
+Discovered with trix 0.21.1 (2026-03-13). Updated 2026-04-14 with tx3c v0.17.0 / trix 0.22.0 findings.
 
 ---
 
@@ -71,21 +71,71 @@ tx3 has no `if/else` or `when` to branch on `payment_policy_id`.
 
 **Status:** Not implemented — all active mainnet markets use ADA as payment token. If a token-payment market appears, the `_token` variants need to be added.
 
+### 6. Reference Datum Fields Only Usable in Datum Construction
+
+Discovered with tx3c v0.17.0 / trix 0.22.0 (2026-04-14).
+
+tx3c v0.17.0 (#318) added `datum_is` on reference blocks, allowing typed field access on reference input datums. However, the **resolver** only supports these fields inside **output datum construction** — not in **amount expressions** (`Ada(...)`, `AnyAsset(...)`, `min_amount`, change calculations).
+
+```tx3
+reference project_info {
+    ref: project_info_ref,
+    datum_is: ProjectInfoDatum,
+}
+
+// WORKS — datum field in output datum
+output {
+    datum: PositionDatum {
+        outref_id: project_info.outref_id,  // OK
+    },
+}
+
+// FAILS — datum field in amount expression
+output {
+    amount: Ada(project_info.pi_envelope_amount + batcher_fee_amount),  // resolver error
+}
+
+// FAILS — datum field in AnyAsset
+locals {
+    shares: AnyAsset(project_info.pi_share_policy_id, project_info.candidate_yes_name, amount),  // resolver error
+}
+```
+
+**Error:** `expected assets, got EvalBuiltIn(Add(Assets([...]), EvalBuiltIn(Property(EvalCoerce(IntoAssets(EvalParam(ExpectInput(...))))), Number(13)))))`
+
+**Impact:** Fields that would eliminate caller params (`pi_envelope_amount`, `pi_share_policy_id`, `candidate_yes/no_name`) cannot be read from reference datums because they're used in amount calculations. Only `outref_id` (used exclusively in datum construction) can be read from the reference.
+
+**Workaround applied:** Keep `envelope_amount`, `share_policy_id`, and `candidate_name` as caller-provided tx params. Use `datum_is` only for `outref_id` in the output datum.
+
+**Affected txs:** `submit_reward_yes/no` (would eliminate 3 params each), `sell_position_yes/no` (would eliminate 1 param each)
+
+**Potential fix:** The resolver needs to evaluate reference datum field access at resolve time (fetching the UTxO, decoding the datum, extracting the field value) before building amount expressions. Currently it defers evaluation and the amount builder doesn't know how to handle the unevaluated expression.
+
+---
+
+## ~~Solved~~ Limitations (fixed in recent tx3c releases)
+
+### ~~Reference Inputs Cannot Read Datum Values~~ — SOLVED in tx3c v0.17.0
+
+**Previously:** tx3 could add reference inputs to a transaction but datum contents were opaque — no field access on reference blocks.
+
+**Fixed:** tx3c v0.17.0 (#318) added `datum_is` on reference blocks. Field access works for **datum construction** in outputs. Applied to all 6 user-facing txs to read `outref_id` from the `ProjectInfoDatum` reference — eliminating `project_outref_tx` + `project_outref_idx` as separate params.
+
+**Remaining limitation:** Field access in amount expressions is still not supported (see active limitation #6 above).
+
+### ~~Record Field Name Shadowing~~ — SOLVED in tx3c v0.17.0
+
+**Previously:** tx param or env var names that collided with type field names caused a lowering panic (`not yet implemented` on `RecordField` symbol).
+
+**Fixed:** tx3c v0.17.0 (#316) added support for shadowing of record field names.
+
 ---
 
 ## Non-Issues / Clarifications
 
-### Reference Inputs Work for Data UTxOs
+### `admin_fee_percent` Must Remain a Caller Parameter
 
-The `reference` block was initially thought to only support script references. This is **wrong** — it works for any UTxO (data or script). Used in `create_market` to add `protocol_settings_ref` as a reference input:
-
-```tx3
-reference settings {
-    ref: protocol_settings_ref,
-}
-```
-
-However, tx3 cannot **read datum values** from reference inputs (field access on reference blocks is not supported). The reference is added to the transaction but its datum contents are opaque to tx3.
+On-chain analysis (2026-04-14, market 1B60_CRUDE_OIL_CLOSES) shows `pos_admin_fee_percent` in PositionDatum can differ from `ProjectInfoDatum.admin_fee_percent` within the same market (values 200 and 10 observed). The deployed contract (9-field PositionDatum) uses per-position fee values — likely a BODEGA holder discount mechanism. Reading from the ProjectInfoDatum reference would produce incorrect datums for discounted users.
 
 ### `collateral_return` / `total_collateral` Not Generated
 
@@ -95,14 +145,17 @@ Real on-chain txs include explicit `collateral_return` (field 16) and `total_col
 
 ## Summary
 
-| # | Type | Description | Workaround | Impact |
-|---|------|-------------|------------|--------|
-| 1 | Limitation | No `*` / `/` operators | Caller pre-computes `total_lovelace` | 2 extra params per buy/sell tx |
-| 2 | Limitation | No dynamic input/output lists | None — batcher txs not implementable | 5 txs blocked (all batcher/admin) |
-| 3 | Limitation | No tuple types | N/A (deployed contract avoids tuples) | Low |
-| 4 | Limitation | Enums not passable as params | Duplicate txs into `_yes`/`_no` variants | 3 txs → 6 variants |
-| 5 | Limitation | No conditional logic | Not implemented (no token markets active) | Would need `_ada`/`_token` variants for buy/sell |
+| # | Status | Description | Workaround | Impact |
+|---|--------|-------------|------------|--------|
+| 1 | Active | No `*` / `/` operators | Caller pre-computes `total_lovelace` | `total_lovelace` + `unit_price` as params per buy/sell tx |
+| 2 | Active | No dynamic input/output lists | None — batcher txs not implementable | 5 txs blocked (all batcher/admin) |
+| 3 | Active | No tuple types | N/A (deployed contract avoids tuples) | Low |
+| 4 | Active | Enums not passable as params | Duplicate txs into `_yes`/`_no` variants | 3 txs -> 6 variants |
+| 5 | Active | No conditional logic | Not implemented (no token markets active) | Would need `_ada`/`_token` variants for buy/sell |
+| 6 | Active | Ref datum fields only in datum construction | Keep params for amount-used fields | 4 extra params across submit_reward + sell_position |
+| - | ~~Solved~~ | ~~Reference inputs can't read datums~~ | Fixed in tx3c v0.17.0 (#318) | `outref_id` now read from reference |
+| - | ~~Solved~~ | ~~Record field name shadowing panic~~ | Fixed in tx3c v0.17.0 (#316) | No longer need to rename params |
 
 **Transactions blocked by tx3 limitations:** 5 out of 11 total (all batcher/admin operations).
-**Transactions requiring workaround duplication:** 3 → 6 (enum variant split).
+**Transactions requiring workaround duplication:** 3 -> 6 (enum variant split).
 **Pending if token-payment markets appear:** `buy_position` and `sell_position` would need `_ada`/`_token` variants.
