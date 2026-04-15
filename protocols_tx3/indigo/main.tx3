@@ -91,19 +91,21 @@ type MaybePkh {
 //   Constr(1) = FrozenCDPAccumulatedFees { lovelacesTreasury, lovelacesIndyStakers }
 type CdpInterest {
     ActiveTracking {
-        ci_timestamp: Int,
-        ci_accumulator: Int,
+        timestamp: Int,
+        accumulator: Int,
     },
     FrozenFees {
-        ci_treasury: Int,
-        ci_stakers: Int,
+        treasury: Int,
+        stakers: Int,
     },
 }
 
 // Oracle Datum — on-chain structure (read from oracle reference input)
 // Constr(0, [nonce: Int, price: OnChainDecimal, expiration: POSIXTime])
-// NOTE: Defined here for documentation. TX3 can't read ref input datums,
-// so oracle values must be queried off-chain and passed as params.
+// TX3 can read reference input datums via `datum_is` in reference blocks.
+// Fields accessible as: oracle_data.od_nonce, oracle_data.od_price, oracle_data.od_expiration
+// NOTE: timestamp_ms and interest_accumulator are NOT from this oracle — they are
+// caller-provided values. The oracle is referenced for on-chain validator checks (price).
 type OracleDatum {
     od_nonce: Int,
     od_price: OnChainDecimal,
@@ -146,10 +148,10 @@ type CDPRedeemer {
 // On-chain: Constr(0, [owner_pkh, mint_amount, collateral, timestamp])
 type CDPCreatorRedeemer {
     CreateCDP {
-        cr_owner: Bytes,
-        cr_mint: Int,
-        cr_collateral: Int,
-        cr_timestamp: Int,
+        owner_pkh: Bytes,
+        mint_amount: Int,
+        collateral: Int,
+        timestamp: Int,
     },
 }
 
@@ -318,6 +320,7 @@ tx create_cdp(
     // Reference inputs for oracle/config data (read-only, not consumed)
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -340,10 +343,10 @@ tx create_cdp(
         ref: creator_utxo,
         datum_is: UnitDatum,
         redeemer: CDPCreatorRedeemer::CreateCDP {
-            cr_owner: owner_pkh,
-            cr_mint: mint_amount,
-            cr_collateral: collateral_lovelace,
-            cr_timestamp: timestamp_ms,
+            owner_pkh: owner_pkh,
+            mint_amount: mint_amount,
+            collateral: collateral_lovelace,
+            timestamp: timestamp_ms,
         },
     }
 
@@ -378,8 +381,8 @@ tx create_cdp(
                 cdp_iasset: iasset_name,
                 cdp_minted_amount: mint_amount,
                 cdp_interest: CdpInterest::ActiveTracking {
-                    ci_timestamp: timestamp_ms,
-                    ci_accumulator: interest_accumulator,
+                    timestamp: timestamp_ms,
+                    accumulator: interest_accumulator,
                 },
             },
         },
@@ -465,6 +468,7 @@ tx adjust_cdp_mint(
 
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -532,8 +536,8 @@ tx adjust_cdp_mint(
                 cdp_iasset: iasset_name,
                 cdp_minted_amount: new_minted_total,
                 cdp_interest: CdpInterest::ActiveTracking {
-                    ci_timestamp: timestamp_ms,
-                    ci_accumulator: accumulator,
+                    timestamp: timestamp_ms,
+                    accumulator: accumulator,
                 },
             },
         },
@@ -608,6 +612,7 @@ tx adjust_cdp_burn(
 
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -675,8 +680,8 @@ tx adjust_cdp_burn(
                 cdp_iasset: iasset_name,
                 cdp_minted_amount: new_minted_total,
                 cdp_interest: CdpInterest::ActiveTracking {
-                    ci_timestamp: timestamp_ms,
-                    ci_accumulator: accumulator,
+                    timestamp: timestamp_ms,
+                    accumulator: accumulator,
                 },
             },
         },
@@ -778,6 +783,7 @@ tx close_cdp(
     // Reference inputs for oracle/config data
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {

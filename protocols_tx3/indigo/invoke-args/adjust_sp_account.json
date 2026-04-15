@@ -1,21 +1,15 @@
 {
-    "user": "addr1q8hahf4eszjt089a7m4uxezg6l6qsjhlc38y87mhdxsya7lzvhy059jgfl9snaewatuc4faqmktmqfpl9ppxaqfz7a4srqp2xm",
-    "owner_pkh": "efdba6b980a4b79cbdf6ebc36448d7f4084affc44e43fb7769a04efb",
+    "user": "addr1q9q54wd08w2fy3znudwtz4ud3kjaqhl9fwfkuhg22wjn8jllaappp9ppy8elg20zd9ckuzdm3dg356ak2y5ka75wuj9shunuuj",
+    "cdpuseraddr": "addr1zyyqtkz5rken7jzptp076np606r79lmsrqjrqw8sdn4kvr8laappp9ppy8elg20zd9ckuzdm3dg356ak2y5ka75wuj9sjwah49",
+    "owner_pkh": "414ab9af3b94924453e35cb1578d8da5d05fe54b936e5d0a53a533cb",
     "iasset_name": "69555344",
     "deposit_change": 100000,
-    "collector_utxo": "437e24fe2564839b2e76d1c98436d2ca94e9c2d18079562dcbbe4905dab05c6f#2",
-    "sp_utxo": "a197bd813a8f49f138672f902a862c4132a11080ef86f45ec2168235848e227c#3",
+    "collector_utxo": "4016aa6a1cba79171659f72f9924127c662fad7bcabacc5207807e49f8d8be82#2",
     "account_utxo": "e5034d218bc8acd75aecef8ab9e3d3a8203f365b166a38a9473687bc5e351834#1",
-    "sp_snapshot_p": 0,
-    "sp_snapshot_d": 0,
-    "sp_snapshot_s": 0,
-    "sp_snapshot_epoch": 0,
-    "sp_snapshot_scale": 0,
     "acc_snapshot_p": 0,
     "acc_snapshot_d": 0,
     "acc_snapshot_s": 0,
     "acc_snapshot_epoch": 0,
     "acc_snapshot_scale": 0,
-    "cdpuseraddr": "addr1zyyqtkz5rken7jzptp076np606r79lmsrqjrqw8sdn4kvr85y9cl3un0cnt335t969c08rhf8j8evuyqkgxw98l26n5sge99dq",
-    "output_addr": "efdba6b980a4b79cbdf6ebc36448d7f4084affc44e43fb7769a04efb"
+    "output_addr": "414ab9af3b94924453e35cb1578d8da5d05fe54b936e5d0a53a533cb"
 }

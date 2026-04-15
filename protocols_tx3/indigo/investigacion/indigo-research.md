@@ -132,6 +132,44 @@ The correct one ends in `...1792a797a0`.
   - iUSD oracle: `e3455f2715338b454fb853442f72dc03b98396854f97510027fe22ff`
   - iSOL oracle: `107992fe118ef6ae341ae0996f355124e03a8fccdcade60692175df2`
 
+- Interest oracle NFTs (from `assetInterestOracleMap` in source):
+  - iBTC: `61dd539719ac5aa2ccc493789796f17039d632e0d0a0d11a43dd5cfe:iBTC_INTEREST`
+  - iETH: `7b75e317505dddce858ae7bf200656a967c7544e55efa5d18ef30249:iETH_INTEREST`
+  - iUSD: `eedb4a24cea6132d3dae1966217f86900e1d8c6a0d668408ecd7eb1b:iUSD_INTEREST`
+
+### Interest Accumulator Computation (2026-04-15 analysis)
+
+The `interest_accumulator` (aka `itUnitaryInterestSnapshot`) in CDP datums is **computed off-chain** by the caller, NOT read directly from any UTxO. The on-chain validator verifies the computation.
+
+**Source data (from interest oracle datum):**
+- `od_nonce`: base accumulator value at oracle update time
+- `od_price`: annual interest rate as `OnChainDecimal` (decimalUnit = 1,000,000)
+- `od_expiration`: timestamp when oracle was last updated
+
+**Constants (from source):**
+- `decimalUnit = 1,000,000` (OnChainDecimal scale, in `Indigo.Common.Data.Decimal`)
+- `oneYear = 31,536,000,000 ms` (in `Indigo.Common.Utils.Helpers`)
+
+**Approximate formula (simple interest, ~99.93% accuracy):**
+```
+annual_rate = od_price / decimalUnit          // e.g., 83819/1e6 = 0.083819 = 8.38%
+delta_t = user_timestamp - od_expiration      // ms since oracle update
+new_accumulator = od_nonce + od_nonce * annual_rate * delta_t / oneYear
+```
+
+**Verified against 4 on-chain txs** using oracle `930f2525` (od_nonce=413102016746163059, od_price=83819):
+
+| Tx | Δtime (h) | Δnonce | Rate/h | Match |
+|---|---|---|---|---|
+| `1291438f` | 48.2 | +460.8B | 9,560B/h | ~99.93% |
+| `e2a4461e` | 91.8 | +878.6B | 9,571B/h | ~99.93% |
+| `fca78b79` | 101.3 | +969.5B | 9,570B/h | ~99.93% |
+| `4016aa6a` | 116.5 | +1,114.7B | 9,568B/h | ~99.93% |
+
+The ~0.07% discrepancy is likely due to compound interest (exact formula is in compiled UPLC, not in public source).
+
+**Impact on tx3:** Cannot compute in tx3 (requires multiplication/division, limitation #3). Must remain a caller-provided param.
+
 ---
 
 ## Smart Contract Types (from GitHub source code)

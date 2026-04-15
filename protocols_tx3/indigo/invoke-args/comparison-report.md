@@ -84,31 +84,32 @@ On-chain deployment matches **VX** from `IndigoProtocol/indigo-upgrade-details-v
 
 | Item | Impact | Notes |
 |---|---|---|
-| Interest accumulator | Low | Value lives in oracle UTxO datum (already a reference input). TX3 can't read ref input datums, so caller must query oracle off-chain and pass as `interest_accumulator` param |
-| SP/Account snapshot values | Low | Same pattern — values live in pool/account UTxO datums. Caller must read and pass as params |
+| Interest accumulator | Low | Caller-provided value, not read from oracle datum. Source TBD (possibly computed off-chain) |
+| SP/Account snapshot values | Low | Values live in pool/account UTxO datums (spent inputs + variant type). Caller must read and pass as params |
 | ExUnits placeholder | None | Expected for `--skip-submit` (2M mem / 2B steps) |
 | CBOR encoding style | None | Definite vs indefinite length — semantically identical |
 | Collateral return/total | None | Optional fields, not included by tx3 |
 | Metadata | None | On-chain Indigo txs have no metadata (confirmed null) |
 
-## TX3 Limitations (unfixable in current tx3 version)
+## TX3 Limitations
 
-See `investigacion/tx3-limitations-indigo.md` for full details:
+See `investigacion/tx3-limitations-indigo.md` for full details.
+Updated 2026-04-15 after tx3c fixes [#316](https://github.com/tx3-lang/tx3/pull/316) (field name shadowing) and [#318](https://github.com/tx3-lang/tx3/pull/318) (typed reference datums).
 
 **Bugs (workaround applied):**
 
-| # | Bug | Workaround |
+| # | Bug | Status |
 |---|---|---|
-| 1 | Type names with primitive prefixes → parse error | Rename types (`CdpInterest`) |
-| 2 | Param = field name → lowering panic | Prefix fields (`cr_owner`, `ci_timestamp`) |
+| 1 | Type names with primitive prefixes → parse error | Workaround in place (`CdpInterest`), not yet fixed in tx3c |
+| 2 | ~~Param = field name → lowering panic~~ | **Fixed** (tx3c [#316](https://github.com/tx3-lang/tx3/pull/316)). Prefixes `cr_`/`ci_` removed, original field names restored |
 
 **Active limitations:**
 
 | # | Limitation | Impact |
 |---|---|---|
 | 3 | No multiplication/division | Caller pre-computes ratios, fees, prices |
-| 4 | Cannot read datum from reference inputs | Caller queries oracle/SP snapshots off-chain, passes as params |
-| 5 | Datum field access fails on variant types | SP account fields passed as explicit params |
+| 4 | ~~Cannot read datum from reference inputs~~ | **Syntax fixed** (tx3c [#318](https://github.com/tx3-lang/tx3/pull/318)). `datum_is: OracleDatum` now works on reference blocks. However, `timestamp_ms` and `interest_accumulator`/`accumulator` are caller-provided (not from oracle datum), so params remain |
+| 5 | Datum field access fails on variant types | SP account/pool fields passed as explicit params (~13 params across 4 txs) |
 
 **Future limitation (not blocking today):**
 
