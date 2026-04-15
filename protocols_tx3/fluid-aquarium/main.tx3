@@ -50,6 +50,10 @@ env {
     // Parameters contract script hash (for NFT identification)
     params_policy: Bytes,
     params_nft_name: Bytes,
+
+    // Oracle reference UTxOs (stable deployment artifacts)
+    oracle_feed_ref: UtxoRef,
+    oracle_contract_ref: UtxoRef,
 }
 
 // --- Types ---
@@ -57,7 +61,7 @@ env {
 // --- Plutus Address types (on-chain representation) ---
 // Used by: ScheduledTx redeemer (batcher field), StakerRedeemer (owner, signer_bot)
 // Currently passed as Bytes due to tx3 limitation #3 (custom types as params).
-// When tx3 supports custom type args, switch st_batcher/sr_owner/sr_signer_bot
+// When tx3 supports custom type args, switch batcher/owner/signer_bot
 // from Bytes to PlutusAddress.
 
 // Credential — payment or staking credential
@@ -65,10 +69,10 @@ env {
 //           Script(hash)          = Constr(1, [ByteArray])
 type Credential {
     VerifKey {
-        cr_hash: Bytes,
+        hash: Bytes,
     },
     ScriptCred {
-        cr_script_hash: Bytes,
+        hash: Bytes,
     },
 }
 
@@ -77,72 +81,75 @@ type Credential {
 //           Some(Inline(credential)) = Constr(0, [Constr(0, [credential])])
 type MaybeStakeCred {
     SomeStake {
-        msc_inline: InlineStake,
+        inline: InlineStake,
     },
     NoStake,
 }
 
 type InlineStake {
-    is_cred: Credential,
+    cred: Credential,
 }
 
 // Plutus Address — on-chain Address representation
 // On-chain: Constr(0, [payment_credential, stake_credential])
 type PlutusAddress {
-    pa_payment: Credential,
-    pa_stake: MaybeStakeCred,
+    payment: Credential,
+    stake: MaybeStakeCred,
 }
 
 // --- Protocol Types ---
 
 // CardanoToken — describes a token accepted for babel fees or scheduled amount
 type CardanoToken {
-    ct_policy: Bytes,
-    ct_name: Bytes,
-    ct_amount: Int,
-    ct_divider: Int,
-    ct_oracle: MaybeAsset,
+    policy: Bytes,
+    name: Bytes,
+    amount: Int,
+    divider: Int,
+    oracle: MaybeAsset,
 }
 
 // Optional oracle asset pointer
 type MaybeAsset {
     SomeAsset {
-        ma_asset: OracleAsset,
+        asset: OracleAsset,
     },
     NoAsset,
 }
 
 // Oracle NFT identifier
 type OracleAsset {
-    oa_policy: Bytes,
-    oa_name: Bytes,
+    policy: Bytes,
+    name: Bytes,
 }
 
 // Tank datum — on-chain data for each tank UTxO
-// TODO: when tx3 supports datum_is on reference blocks, use this type to read
-// tank datums directly instead of passing raw CBOR or individual params.
-// Example future syntax:
+// NOTE: datum_is on reference blocks is now supported
+// (unreleased fix https://github.com/tx3-lang/tx3/pull/318).
+// Tank datums could be read directly via:
 //   reference tank_data { ref: tank_utxo, datum_is: TankDatum, }
-//   then: tank_data.td_tank_owner, tank_data.td_execution_time, etc.
+//   then: tank_data.allowed_tokens, tank_data.execution_time, etc.
+// Currently passed as raw CBOR for creation txs and propagated via datum: tank_input.
 type TankDatum {
-    td_allowed_tokens: List<CardanoToken>,
-    td_tank_owner: PlutusAddress,
-    td_whitelisted: List<PlutusAddress>,
-    td_execution_time: Int,
-    td_destination: PlutusAddress,
-    td_scheduled_amount: CardanoToken,
-    td_reward: CardanoToken,
+    allowed_tokens: List<CardanoToken>,
+    tank_owner: PlutusAddress,
+    whitelisted: List<PlutusAddress>,
+    execution_time: Int,
+    destination: PlutusAddress,
+    scheduled_amount: CardanoToken,
+    reward: CardanoToken,
 }
 
 // DatumParameters — config stored at the parameters contract
-// TODO: when tx3 supports datum_is on reference blocks:
+// NOTE: datum_is on reference blocks is now supported
+// (unreleased fix https://github.com/tx3-lang/tx3/pull/318).
+// Could be read via:
 //   reference params { ref: params_ref, datum_is: ParamsDatum, }
-//   then: params.pd_min_to_stake, params.pd_address_rewards, etc.
+//   then: params.min_to_stake, params.address_rewards, etc.
 type ParamsDatum {
-    pd_min_to_stake: Int,
-    pd_owner: Bytes,
-    pd_address_rewards: PlutusAddress,
-    pd_min_ada: Int,
+    min_to_stake: Int,
+    owner: Bytes,
+    address_rewards: PlutusAddress,
+    min_ada: Int,
 }
 
 // --- Redeemers ---
@@ -150,107 +157,107 @@ type ParamsDatum {
 // Tank redeemer — constructor order matches on-chain
 type TankRedeemer {
     Consume {
-        r_paying_token_idx: Int,
-        r_input_tank_idx: Int,
-        r_receivers: Int,
-        r_ref_params_idx: Int,
-        r_whitelist_idx: Int,
+        paying_token_idx: Int,
+        input_tank_idx: Int,
+        receivers: Int,
+        ref_params_idx: Int,
+        whitelist_idx: Int,
     },
     ConsumeAll {
-        ra_paying_token_idx: Int,
-        ra_input_tank_idx: Int,
-        ra_receivers: Int,
-        ra_ref_params_idx: Int,
-        ra_whitelist_idx: Int,
+        paying_token_idx: Int,
+        input_tank_idx: Int,
+        receivers: Int,
+        ref_params_idx: Int,
+        whitelist_idx: Int,
     },
     WithdrawTank,
     ScheduledTx {
-        st_input_tank_idx: Int,
-        st_batcher: Bytes,              // TODO: switch to PlutusAddress when tx3 supports custom type args
-        st_ref_staking_idx: Int,
-        st_ref_params_idx: Int,
-        st_whitelist_idx: Int,
+        input_tank_idx: Int,
+        batcher: Bytes,              // TODO: switch to PlutusAddress when tx3 supports custom type args
+        ref_staking_idx: Int,
+        ref_params_idx: Int,
+        whitelist_idx: Int,
     },
     ConsumeOracle {
-        co_paying_token_idx: Int,
-        co_input_tank_idx: Int,
-        co_receivers: Int,
-        co_oracle_idx: Int,
-        co_ref_params_idx: Int,
-        co_whitelist_idx: Int,
+        paying_token_idx: Int,
+        input_tank_idx: Int,
+        receivers: Int,
+        oracle_idx: Int,
+        ref_params_idx: Int,
+        whitelist_idx: Int,
     },
     ConsumeAllOracle {
-        cao_paying_token_idx: Int,
-        cao_input_tank_idx: Int,
-        cao_receivers: Int,
-        cao_oracle_idx: Int,
-        cao_ref_params_idx: Int,
-        cao_whitelist_idx: Int,
+        paying_token_idx: Int,
+        input_tank_idx: Int,
+        receivers: Int,
+        oracle_idx: Int,
+        ref_params_idx: Int,
+        whitelist_idx: Int,
     },
 }
 
 // Staker mint redeemer
-// TODO: switch sr_owner and sr_signer_bot to PlutusAddress when tx3 supports custom type args
+// TODO: switch owner and signer_bot to PlutusAddress when tx3 supports custom type args
 type StakerRedeemer {
-    sr_owner: Bytes,                    // PlutusAddress (owner wallet)
-    sr_signer_bot: Bytes,               // PlutusAddress (bot wallet)
-    sr_ref_index: Int,
-    sr_output_staking: Int,
-    sr_staking_inputs: Int,
+    owner: Bytes,                    // PlutusAddress (owner wallet)
+    signer_bot: Bytes,               // PlutusAddress (bot wallet)
+    ref_index: Int,
+    output_staking: Int,
+    staking_inputs: Int,
 }
 
 // --- Oracle Types (for withdrawal-based price validation) ---
 
 // Asset identifier (policyId + assetName)
 type FeedAsset {
-    fa_policy: Bytes,
-    fa_name: Bytes,
+    policy: Bytes,
+    name: Bytes,
 }
 
 // Common data shared by all oracle price feed types
 type CommonFeedData {
-    cfd_valid_from: Int,
-    cfd_valid_to: Int,
-    cfd_token: FeedAsset,
+    valid_from: Int,
+    valid_to: Int,
+    token: FeedAsset,
 }
 
 // Oracle price feed — variant type matching on-chain constructor order
 // On-chain: Aggregated=0, Pooled=1, Dedicated=2, PriceDataCharlie=3, PriceDataOrcfax=4
 type OraclePriceFeed {
     FeedAggregated {
-        opf_common: CommonFeedData,
-        opf_price: Int,
-        opf_denominator: Int,
+        common: CommonFeedData,
+        price: Int,
+        denominator: Int,
     },
     FeedPooled {
-        opf_common_p: CommonFeedData,
-        opf_token_a: Int,
-        opf_token_b: Int,
+        common: CommonFeedData,
+        token_a: Int,
+        token_b: Int,
     },
     FeedDedicated {
-        opf_common_d: CommonFeedData,
-        opf_price_d: Int,
-        opf_denominator_d: Int,
+        common: CommonFeedData,
+        price: Int,
+        denominator: Int,
     },
     FeedCharlie {
-        opf_provider_idx: Int,
-        opf_common_c: CommonFeedData,
-        opf_price_c: Int,
-        opf_denominator_c: Int,
+        provider_idx: Int,
+        common: CommonFeedData,
+        price: Int,
+        denominator: Int,
     },
     FeedOrcfax {
-        opf_pointer_idx: Int,
-        opf_provider_idx_o: Int,
-        opf_common_o: CommonFeedData,
-        opf_price_o: Int,
-        opf_denominator_o: Int,
+        pointer_idx: Int,
+        provider_idx: Int,
+        common: CommonFeedData,
+        price: Int,
+        denominator: Int,
     },
 }
 
 // Oracle signature (ed25519 signature + key position index)
 type OracleSignature {
-    os_signature: Bytes,
-    os_key_position: Int,
+    signature: Bytes,
+    key_position: Int,
 }
 
 // Oracle redeemer — wraps the price feed + signatures
@@ -258,8 +265,8 @@ type OracleSignature {
 // custom types as args). Hardcoded as empty list [] since on-chain
 // PriceDataCharlie txs use 0 signatures (oracle validated via ref input).
 type OracleRedeemer {
-    or_feed: OraclePriceFeed,
-    or_signatures: List<OracleSignature>,
+    feed: OraclePriceFeed,
+    signatures: List<OracleSignature>,
 }
 
 // ============================================================
@@ -381,9 +388,7 @@ tx withdraw_tank(
 
 tx consume_oracle(
     tank_utxo: UtxoRef,
-    oracle_feed_ref: UtxoRef,
     oracle_provider_ref: UtxoRef,
-    oracle_contract_ref: UtxoRef,
     paying_token_idx: Int,
     input_tank_idx: Int,
     oracle_idx: Int,
@@ -398,8 +403,6 @@ tx consume_oracle(
     oracle_provider_idx: Int,
     oracle_valid_from: Int,
     oracle_valid_to: Int,
-    oracle_token_policy: Bytes,
-    oracle_token_name: Bytes,
     oracle_price: Int,
     oracle_denominator: Int,
 ) {
@@ -436,12 +439,12 @@ tx consume_oracle(
     input tank_input {
         ref: tank_utxo,
         redeemer: TankRedeemer::ConsumeOracle {
-            co_paying_token_idx: paying_token_idx,
-            co_input_tank_idx: input_tank_idx,
-            co_receivers: 0,
-            co_oracle_idx: oracle_idx,
-            co_ref_params_idx: ref_params_idx,
-            co_whitelist_idx: 0,
+            paying_token_idx: paying_token_idx,
+            input_tank_idx: input_tank_idx,
+            receivers: 0,
+            oracle_idx: oracle_idx,
+            ref_params_idx: ref_params_idx,
+            whitelist_idx: 0,
         },
     }
 
@@ -477,27 +480,26 @@ tx consume_oracle(
     }
 
     // Oracle validation via withdrawal (0 ADA)
-    // NOTE: tx3 bug — the redeemer is defined here but tx3 does NOT generate
-    // the reward redeemer in the witness set. The withdrawal body entry IS correct.
-    // See investigacion/tx3-limitations-aquarium.md #2.
     cardano::withdrawal {
         from: OracleScript,
         amount: 0,
         redeemer: OracleRedeemer {
-            or_feed: OraclePriceFeed::FeedCharlie {
-                opf_provider_idx: oracle_provider_idx,
-                opf_common_c: CommonFeedData {
-                    cfd_valid_from: oracle_valid_from,
-                    cfd_valid_to: oracle_valid_to,
-                    cfd_token: FeedAsset {
-                        fa_policy: oracle_token_policy,
-                        fa_name: oracle_token_name,
+            feed: OraclePriceFeed::FeedCharlie {
+                provider_idx: oracle_provider_idx,
+                common: CommonFeedData {
+                    valid_from: oracle_valid_from,
+                    valid_to: oracle_valid_to,
+                    // Oracle token must match payment token (enforced by
+                    // is_feed_token_correct in validators/oracle.ak)
+                    token: FeedAsset {
+                        policy: payment_token_policy,
+                        name: payment_token_name,
                     },
                 },
-                opf_price_c: oracle_price,
-                opf_denominator_c: oracle_denominator,
+                price: oracle_price,
+                denominator: oracle_denominator,
             },
-            or_signatures: [],
+            signatures: [],
         },
     }
 
@@ -555,11 +557,11 @@ tx execute_scheduled(
     input tank_input {
         ref: tank_utxo,
         redeemer: TankRedeemer::ScheduledTx {
-            st_input_tank_idx: 0,
-            st_batcher: batcher_addr_cbor,
-            st_ref_staking_idx: ref_staking_idx,
-            st_ref_params_idx: ref_params_idx,
-            st_whitelist_idx: 0,
+            input_tank_idx: 0,
+            batcher: batcher_addr_cbor,
+            ref_staking_idx: ref_staking_idx,
+            ref_params_idx: ref_params_idx,
+            whitelist_idx: 0,
         },
     }
 

@@ -28,8 +28,9 @@ Users can also stake FLDT tokens to register as Aquarium node operators.
 
 - **Tank creation is script-free:** `create_babel_tank` and `create_scheduled_tank` are plain payments with inline datums — no validators execute.
 - **Oracle validation:** `consume_oracle` uses a withdrawal-based oracle (0 ADA withdrawal with redeemer). The oracle redeemer currently supports Charli3 price feeds.
-- **Known tx3 limitation:** The withdrawal redeemer in `consume_oracle` is defined but tx3 does NOT generate the reward redeemer in the witness set (the withdrawal body entry is correct). This may require manual patching.
+- **Withdrawal redeemer:** Fixed ([tx3#317](https://github.com/tx3-lang/tx3/pull/317)). The reward redeemer is now correctly compiled into the witness set.
 - **Raw CBOR datums:** Tank creation transactions use raw CBOR for the datum (`tank_datum_cbor`) because the `TankDatum` type contains nested lists and optional types that are complex to pass as parameters.
+- **Oracle datum not readable via `datum_is`:** The Charli3 oracle provider datum uses a Map-based CBOR format (`Constr(0, [Constr(2, [Map {...}])])`) which tx3 types cannot model (they require positional constructor fields). Oracle values must still be passed as individual params.
 - **Reference inputs ordering:** `consume_oracle` relies on multiple reference inputs (oracle provider, oracle contract, staker, parameters NFT, tank ref script) — their indices in the transaction must match the redeemer fields.
 - **Staker redeemer:** `stake_fldt` uses a raw CBOR redeemer (`staker_redeemer_cbor`) due to tx3 limitations on custom types as parameters.
 
@@ -60,7 +61,7 @@ This transaction requires extensive off-chain data:
 
 ## tx3 Limitations
 
-Several tx3 language limitations affect this protocol. The most critical: **the withdrawal redeemer is not generated in the witness set**, blocking `consume_oracle` from executing on-chain without CBOR post-processing. For the full list, see [investigacion/tx3-limitations-aquarium.md](investigacion/tx3-limitations-aquarium.md).
+Several tx3 language limitations affect this protocol. Three were resolved with unreleased fixes: field name shadowing ([tx3#316](https://github.com/tx3-lang/tx3/pull/316)), withdrawal redeemer generation ([tx3#317](https://github.com/tx3-lang/tx3/pull/317)), and typed reference datum access ([tx3#318](https://github.com/tx3-lang/tx3/pull/318)). Remaining limitations include custom types as params, list values as invoke args, and staking key extraction. For the full list, see [investigacion/tx3-limitations-aquarium.md](investigacion/tx3-limitations-aquarium.md).
 
 ## Smart Contracts
 

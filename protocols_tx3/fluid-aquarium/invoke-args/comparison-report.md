@@ -37,7 +37,7 @@
 | Collateral | 1 | 1 | ✓ |
 | Script data hash | present | present | ✓ |
 | Spend redeemer | ConsumeOracle (tag=4) | ConsumeOracle (tag=4) | ✓ |
-| Reward redeemer | **ABSENT** | OracleRedeemer (tag=0) | ✗ tx3 bug |
+| Reward redeemer | OracleRedeemer (tag=0) | OracleRedeemer (tag=0) | ✓ (fixed [tx3#317](https://github.com/tx3-lang/tx3/pull/317)) |
 | Metadata | none | CBORTag(259,{}) | ~ (wallet boilerplate) |
 
 ### execute_scheduled vs [`98994109...`](https://cexplorer.io/tx/9899410992740c6166116bb95719fc3b06c3d8cde1714e51c3b3666478f50916)
@@ -100,9 +100,9 @@
 - **Collateral return**: `--skip-submit` may not include collateral return output
 - **Metadata**: on-chain has `CBORTag(259,{})` — empty wallet boilerplate, not protocol data
 
-## Known Limitation
+## Resolved Limitations
 
-**Withdrawal redeemer (consume_oracle)**: tx3 generates the withdrawal body entry correctly but does NOT generate the reward redeemer in the witness set. See `investigacion/tx3-limitations-aquarium.md` #2.
+**Withdrawal redeemer (consume_oracle)**: Fixed ([tx3#317](https://github.com/tx3-lang/tx3/pull/317)). The reward redeemer is now correctly generated in the witness set. All 6 transactions produce fully valid CBOR matching on-chain structure.
 
 ## How to Reproduce
 
@@ -114,8 +114,7 @@ trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/create_
 # select: create_babel_tank
 
 # 2. Create scheduled tank
-trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/create_babel_tank.json
-# select: create_scheduled_tank
+trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/create_scheduled_tank.json
 
 # 3. Withdraw from tank
 trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/withdraw_tank.json
