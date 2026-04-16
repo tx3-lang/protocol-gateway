@@ -70,18 +70,18 @@ type MintRedeemer {
 //   - owner identifier NFT (mint_policy_id / owner_pkh, qty=1)  — returned to staker
 //
 // Params:
-//   owner_pkh  — staker's payment key hash (required signer + owner NFT asset name)
-//   amount     — quantity of STRIKE tokens to stake
+//   owner_pkh     — staker's payment key hash (required signer + owner NFT asset name)
+//   amount        — quantity of STRIKE tokens to stake
+//   staked_at     — POSIX timestamp in milliseconds (caller-provided, see limitation #3)
 tx stake(
     owner_pkh: Bytes,
-    stake_amount: Int,
-    staked_at_time: Int,
+    amount: Int,
+    staked_at: Int,
 ) {
     locals {
         tracker_token: AnyAsset(mint_policy_id, tracker_asset_name, 1),
         owner_nft: AnyAsset(mint_policy_id, owner_pkh, 1),
-        strike: AnyAsset(staking_policy_id, staking_asset_name, stake_amount),
-        credential_policy: mint_policy_id,
+        strike: AnyAsset(staking_policy_id, staking_asset_name, amount),
     }
 
     validity {
@@ -105,7 +105,7 @@ tx stake(
     // Mint tracker token (locked in script) + owner NFT (returned to staker)
     mint {
         amount: tracker_token + owner_nft,
-        redeemer: MintRedeemer::Mint { amount: stake_amount, },
+        redeemer: MintRedeemer::Mint { amount: amount, },
     }
 
     // New staking UTxO at the script address (includes owner NFT locked in script)
@@ -114,8 +114,8 @@ tx stake(
         amount: min_utxo(stake_utxo) + strike + tracker_token + owner_nft,
         datum: StakingDatum {
             owner_address_hash: owner_pkh,
-            staked_at: staked_at_time, // (slot_to_time(tip_slot()) + 200),
-            mint_policy_id: credential_policy,
+            staked_at: staked_at, // (slot_to_time(tip_slot()) + 200),
+            mint_policy_id: mint_policy_id,
         },
     }
 
@@ -148,12 +148,10 @@ tx add_stake(
     owner_pkh: Bytes,
     staking_utxo: UtxoRef,
     additional_amount: Int,
-    staked_at_time: Int,
 ) {
     locals {
         owner_nft: AnyAsset(mint_policy_id, owner_pkh, 1),
         extra_strike: AnyAsset(staking_policy_id, staking_asset_name, additional_amount),
-        credential_policy: mint_policy_id,
     }
 
     reference spend_script {
@@ -177,11 +175,7 @@ tx add_stake(
     output {
         to: StakingScript,
         amount: current_stake + extra_strike,
-        datum: StakingDatum {
-            owner_address_hash: owner_pkh,
-            staked_at: staked_at_time,
-            mint_policy_id: credential_policy,
-        },
+        datum: StakingDatum { ...current_stake },
     }
 
     // Return owner NFT + remaining ADA to staker
