@@ -30,9 +30,9 @@ env {
 // On-chain: Constr(0, [Bytes, OrderType])
 type OrderDatum {
     // User's payment credential (28 bytes) + staking credential (28 bytes)
-    od_user_creds: Bytes,
+    user_creds: Bytes,
     // Order type (swap, add/remove liquidity)
-    od_order_type: OrderType,
+    order_type: OrderType,
 }
 
 // --- Order Type variants ---
@@ -45,7 +45,7 @@ type OrderDatum {
 
 type OrderType {
     AddLiquidity { min_lp_tokens: Int, },
-    RemoveLiquidity { rl_min_amounts: RemoveLiqMinAmounts, },
+    RemoveLiquidity { min_amounts: RemoveLiqMinAmounts, },
     OrderType2 {},
     SwapAToB { min_receive_b: Int, },
     SwapBToA { min_receive_a: Int, },
@@ -79,8 +79,8 @@ tx swap_a_to_b(
         to: OrderScript,
         amount: Ada(swap_amount + process_fee),
         datum: OrderDatum {
-            od_user_creds: user_creds,
-            od_order_type: OrderType::SwapAToB {
+            user_creds: user_creds,
+            order_type: OrderType::SwapAToB {
                 min_receive_b: min_out,
             },
         },
@@ -121,8 +121,8 @@ tx swap_b_to_a(
         to: OrderScript,
         amount: Ada(order_ada) + swap_tokens,
         datum: OrderDatum {
-            od_user_creds: user_creds,
-            od_order_type: OrderType::SwapBToA {
+            user_creds: user_creds,
+            order_type: OrderType::SwapBToA {
                 min_receive_a: min_out,
             },
         },
@@ -163,8 +163,8 @@ tx add_liquidity(
         to: OrderScript,
         amount: Ada(ada_amount + process_fee) + deposit_tokens,
         datum: OrderDatum {
-            od_user_creds: user_creds,
-            od_order_type: OrderType::AddLiquidity {
+            user_creds: user_creds,
+            order_type: OrderType::AddLiquidity {
                 min_lp_tokens: desired_lp,
             },
         },
@@ -207,9 +207,9 @@ tx remove_liquidity(
         to: OrderScript,
         amount: Ada(order_ada) + lp_tokens,
         datum: OrderDatum {
-            od_user_creds: user_creds,
-            od_order_type: OrderType::RemoveLiquidity {
-                rl_min_amounts: RemoveLiqMinAmounts {
+            user_creds: user_creds,
+            order_type: OrderType::RemoveLiquidity {
+                min_amounts: RemoveLiqMinAmounts {
                     min_ada: min_out_ada,
                     min_token_b: min_out_token,
                 },
