@@ -267,10 +267,6 @@ tx buy_position_yes(
         until_slot: tip_slot() + 600,
     }
 
-    metadata {
-        674: "Bodega Market - Buy Position Yes",
-    }
-
     input* source {
         from: User,
         min_amount: Ada(total_lovelace) + fees,
@@ -504,10 +500,6 @@ tx sell_position_yes(
 
     validity {
         until_slot: tip_slot() + 600,
-    }
-
-    metadata {
-        674: "Bodega Market - Sell Position Yes",
     }
 
     input* source {
