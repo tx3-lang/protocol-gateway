@@ -42,22 +42,29 @@ party StakingScript;
 
 env {
     // -- Minting policy IDs --
-    iasset_policy_id: Bytes,        // iAsset minting policy (iUSD, iBTC, etc.)
-    cdp_nft_policy_id: Bytes,       // CDP NFT minting policy
-    cdp_creator_policy_id: Bytes,   // CDP_CREATOR auth token policy
+    iasset_policy_id: Bytes,                 // iAsset minting policy (iUSD, iBTC, etc.)
+    cdp_nft_policy_id: Bytes,                // CDP NFT minting policy
+    cdp_creator_policy_id: Bytes,            // CDP_CREATOR auth token policy
+    staking_manager_nft_policy_id: Bytes,    // STAKING_MANAGER_NFT (singleton NFT)
+    staking_position_policy_id: Bytes,       // STAKING_POSITION (minted/burned per position)
+    indy_policy_id: Bytes,                   // INDY governance/staking token
 
     // -- Token names (hex) --
-    cdp_nft_name: Bytes,            // "CDP" = 434450
-    cdp_creator_name: Bytes,        // "CDP_CREATOR" = 4344505f43524541544f52
+    cdp_nft_name: Bytes,                     // "CDP"
+    cdp_creator_name: Bytes,                 // "CDP_CREATOR"
+    staking_manager_nft_name: Bytes,         // "STAKING_MANAGER_NFT"
+    staking_position_name: Bytes,            // "STAKING_POSITION"
+    indy_name: Bytes,                        // "INDY"
 
     // -- Reference script UTxOs --
-    cdp_spend_ref: UtxoRef,         // CDP spend validator ref script
-    cdp_creator_ref: UtxoRef,       // CDP creator validator ref script
-    collector_ref: UtxoRef,         // Collector validator ref script
-    iasset_mint_ref: UtxoRef,       // iAsset minting policy ref script
-    cdp_nft_mint_ref: UtxoRef,      // CDP NFT minting policy ref script
-    stability_pool_ref: UtxoRef,    // Stability Pool validator ref script
-    staking_ref: UtxoRef,           // INDY Staking validator ref script
+    cdp_spend_ref: UtxoRef,                  // CDP spend validator ref script
+    cdp_creator_ref: UtxoRef,                // CDP creator validator ref script
+    collector_ref: UtxoRef,                  // Collector validator ref script
+    iasset_mint_ref: UtxoRef,                // iAsset minting policy ref script
+    cdp_nft_mint_ref: UtxoRef,               // CDP NFT minting policy ref script
+    stability_pool_ref: UtxoRef,             // Stability Pool validator ref script
+    staking_ref: UtxoRef,                    // INDY Staking validator ref script
+    staking_position_mint_ref: UtxoRef,      // STAKING_POSITION mint policy ref script
 }
 
 // --- Types ---
@@ -91,19 +98,21 @@ type MaybePkh {
 //   Constr(1) = FrozenCDPAccumulatedFees { lovelacesTreasury, lovelacesIndyStakers }
 type CdpInterest {
     ActiveTracking {
-        ci_timestamp: Int,
-        ci_accumulator: Int,
+        timestamp: Int,
+        accumulator: Int,
     },
     FrozenFees {
-        ci_treasury: Int,
-        ci_stakers: Int,
+        treasury: Int,
+        stakers: Int,
     },
 }
 
 // Oracle Datum — on-chain structure (read from oracle reference input)
 // Constr(0, [nonce: Int, price: OnChainDecimal, expiration: POSIXTime])
-// NOTE: Defined here for documentation. TX3 can't read ref input datums,
-// so oracle values must be queried off-chain and passed as params.
+// TX3 can read reference input datums via `datum_is` in reference blocks.
+// Fields accessible as: oracle_data.od_nonce, oracle_data.od_price, oracle_data.od_expiration
+// NOTE: timestamp_ms and interest_accumulator are NOT from this oracle — they are
+// caller-provided values. The oracle is referenced for on-chain validator checks (price).
 type OracleDatum {
     od_nonce: Int,
     od_price: OnChainDecimal,
@@ -146,10 +155,10 @@ type CDPRedeemer {
 // On-chain: Constr(0, [owner_pkh, mint_amount, collateral, timestamp])
 type CDPCreatorRedeemer {
     CreateCDP {
-        cr_owner: Bytes,
-        cr_mint: Int,
-        cr_collateral: Int,
-        cr_timestamp: Int,
+        owner_pkh: Bytes,
+        mint_amount: Int,
+        collateral: Int,
+        timestamp: Int,
     },
 }
 
@@ -239,13 +248,51 @@ type StabilityPoolRedeemer {
 }
 
 
-// Staking Datum — on-chain ALL staking UTxOs use Constr(0, []) (empty datum)
-// Identity is determined by address (script + user stake cred) and tokens present.
-// We use UnitDatum for staking inputs/outputs.
-// (The source code defines StakingManager/StakingPosition with fields,
-// but on-chain deployment uses empty datums for all 664+ staking UTxOs)
+// Staking Datum — V2/VX structured datums (confirmed via indigo-sdk
+// src/types/indigo/staking.ts and real on-chain CreateStakingPosition CBOR).
+// NOTE: Earlier investigation notes claimed "all staking datums are Constr(0,[])
+// empty" — that was wrong. Datums are fully structured per V1/V2 source.
+//
+// StakingDatum = Constr(0, [StakingManagerContent])   -- Manager variant
+//              | Constr(1, [StakingPositionContent])  -- Position variant
+type StakingDatum {
+    StakingManager {
+        sm_content: StakingManagerContent,
+    },
+    StakingPosition {
+        sp_content: StakingPositionContent,
+    },
+}
 
-// Staking Redeemer — V2 (Unlock removed, UpgradeVersion moved to 6)
+// StakingManagerContent — Constr(0, [totalStake, managerSnapshot])
+type StakingManagerContent {
+    st_total_stake: Int,
+    st_manager_snapshot: RewardSnapshot,
+}
+
+// StakingPositionContent — Constr(0, [owner, lockedAmount, positionSnapshot])
+// lockedAmount is Map<PollId, LockedEntry> where LockedEntry models the
+// on-chain tuple (voteAmount, endTime) as Constr(0, [Int, Int]) to work around
+// tx3's lack of tuple types in datums.
+type StakingPositionContent {
+    st_owner: Bytes,
+    st_locked_amount: Map<Int, LockedEntry>,
+    st_position_snapshot: RewardSnapshot,
+}
+
+// RewardSnapshot — Constr(0, [snapshotAda])
+type RewardSnapshot {
+    rs_snapshot_ada: Int,
+}
+
+// LockedEntry — on-chain: (voteAmount: Int, endTime: POSIXTime)
+// Modeled as a Constr(0, [Int, Int]) since tx3 doesn't support tuple datums.
+type LockedEntry {
+    le_vote_amount: Int,
+    le_end_time: Int,
+}
+
+// Staking Redeemer — V2/VX (Unlock removed, UpgradeVersion moved to 6)
 type StakingRedeemer {
     StCreateStakingPosition {
         st_pkh: Bytes,
@@ -318,6 +365,7 @@ tx create_cdp(
     // Reference inputs for oracle/config data (read-only, not consumed)
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -340,10 +388,10 @@ tx create_cdp(
         ref: creator_utxo,
         datum_is: UnitDatum,
         redeemer: CDPCreatorRedeemer::CreateCDP {
-            cr_owner: owner_pkh,
-            cr_mint: mint_amount,
-            cr_collateral: collateral_lovelace,
-            cr_timestamp: timestamp_ms,
+            owner_pkh: owner_pkh,
+            mint_amount: mint_amount,
+            collateral: collateral_lovelace,
+            timestamp: timestamp_ms,
         },
     }
 
@@ -378,8 +426,8 @@ tx create_cdp(
                 cdp_iasset: iasset_name,
                 cdp_minted_amount: mint_amount,
                 cdp_interest: CdpInterest::ActiveTracking {
-                    ci_timestamp: timestamp_ms,
-                    ci_accumulator: interest_accumulator,
+                    timestamp: timestamp_ms,
+                    accumulator: interest_accumulator,
                 },
             },
         },
@@ -465,6 +513,7 @@ tx adjust_cdp_mint(
 
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -532,8 +581,8 @@ tx adjust_cdp_mint(
                 cdp_iasset: iasset_name,
                 cdp_minted_amount: new_minted_total,
                 cdp_interest: CdpInterest::ActiveTracking {
-                    ci_timestamp: timestamp_ms,
-                    ci_accumulator: accumulator,
+                    timestamp: timestamp_ms,
+                    accumulator: accumulator,
                 },
             },
         },
@@ -608,6 +657,7 @@ tx adjust_cdp_burn(
 
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -675,8 +725,8 @@ tx adjust_cdp_burn(
                 cdp_iasset: iasset_name,
                 cdp_minted_amount: new_minted_total,
                 cdp_interest: CdpInterest::ActiveTracking {
-                    ci_timestamp: timestamp_ms,
-                    ci_accumulator: accumulator,
+                    timestamp: timestamp_ms,
+                    accumulator: accumulator,
                 },
             },
         },
@@ -778,6 +828,7 @@ tx close_cdp(
     // Reference inputs for oracle/config data
     reference oracle_data {
         ref: oracle_utxo,
+        datum_is: OracleDatum,
     }
 
     reference iasset_config {
@@ -1191,83 +1242,91 @@ tx close_sp_account(
 }
 
 // ============================================================
-// 7. CREATE STAKING POSITION [V1/V2 on-chain — empty datums, VX upgrade pending]
+// 7. CREATE STAKING POSITION [V2/VX on-chain — confirmed via indigo-sdk]
 // ============================================================
 // Stake INDY tokens to earn protocol fee rewards (ADA).
-// Consumes: Staking Manager UTxO (continuity) + Collector UTxO
+// Consumes: Staking Manager UTxO (continuity — totalStake increases).
+// Mints:    +1 STAKING_POSITION NFT authenticating the new position.
+//
+// Reference: indigo-sdk src/contracts/staking.ts :: openPosition
+//
+// Caller must read the current Staking Manager datum off-chain and pass:
+//   - old_total_stake: current StakingManagerContent.totalStake
+//   - current_snapshot_ada: current managerSnapshot.snapshotAda
+// The new position's positionSnapshot is initialised to the same snapshot,
+// so the user starts earning rewards from now.
 tx create_staking(
     owner_pkh: Bytes,
     indy_amount: Int,
-    indy_policy_id: Bytes,
-    indy_asset_name: Bytes,
-    staking_token_policy_id: Bytes,
-    staking_token_name: Bytes,
     manager_utxo: UtxoRef,
-    collector_utxo: UtxoRef,
+    old_total_stake: Int,
+    current_snapshot_ada: Int,
 ) {
     locals {
-        indy_tokens: AnyAsset(indy_policy_id, indy_asset_name, indy_amount),
-        staking_token: AnyAsset(staking_token_policy_id, staking_token_name, 1),
-    }
-
-    validity {
-        since_slot: tip_slot(),
-        until_slot: tip_slot() + 600,
+        indy_tokens: AnyAsset(indy_policy_id, indy_name, indy_amount),
+        staking_position_nft: AnyAsset(staking_position_policy_id, staking_position_name, 1),
+        current_snapshot: RewardSnapshot {
+            rs_snapshot_ada: current_snapshot_ada,
+        },
     }
 
     reference staking_script {
         ref: staking_ref,
     }
 
-    reference collector_script {
-        ref: collector_ref,
+    reference staking_position_mint_script {
+        ref: staking_position_mint_ref,
     }
 
-    // Spend Staking Manager UTxO (continuity — updated total stake)
+    // Spend Staking Manager UTxO (continuity — updated totalStake)
     input manager_input {
         ref: manager_utxo,
-        datum_is: UnitDatum,
+        datum_is: StakingDatum,
         redeemer: StakingRedeemer::StCreateStakingPosition {
             st_pkh: owner_pkh,
         },
     }
 
-    // Spend Collector UTxO (continuity)
-    input collector_input {
-        ref: collector_utxo,
-        datum_is: UnitDatum,
-        redeemer: CollectorRedeemer::Collect {},
-    }
-
-    // User provides INDY tokens + ADA for fees + min UTxO
+    // User provides INDY tokens + ADA for fees + min UTxO for position + minUTxO for change
     input* source {
         from: User,
-        min_amount: fees + indy_tokens + min_utxo(position_output),
+        min_amount: fees + indy_tokens + min_utxo(position_output) + min_utxo(change_output),
     }
 
-    // Updated Staking Manager (on-chain uses empty datum)
+    // Mint +1 STAKING_POSITION NFT (authenticates the new position UTxO)
+    mint {
+        amount: staking_position_nft,
+        redeemer: UnitDatum {},
+    }
+
+    // Updated Staking Manager — same assets, totalStake increased by indy_amount,
+    // snapshot unchanged (it only moves forward on Distribute).
     output manager_output {
         to: StakingScript,
         amount: manager_input,
-        datum: UnitDatum {},
+        datum: StakingDatum::StakingManager {
+            sm_content: StakingManagerContent {
+                st_total_stake: old_total_stake + indy_amount,
+                st_manager_snapshot: current_snapshot,
+            },
+        },
     }
 
-    // New Staking Position UTxO (on-chain uses empty datum)
+    // New Staking Position — owner, empty lockedAmount map, snapshot = manager's current.
     output position_output {
         to: StakingScript,
-        amount: min_utxo(position_output) + indy_tokens + staking_token,
-        datum: UnitDatum {},
-    }
-
-    // Return Collector UTxO
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
+        amount: min_utxo(position_output) + indy_tokens + staking_position_nft,
+        datum: StakingDatum::StakingPosition {
+            sp_content: StakingPositionContent {
+                st_owner: owner_pkh,
+                st_locked_amount: {},
+                st_position_snapshot: current_snapshot,
+            },
+        },
     }
 
     // User change
-    output {
+    output change_output {
         to: User,
         amount: source - fees - indy_tokens - min_utxo(position_output),
     }
@@ -1287,13 +1346,16 @@ tx create_staking(
 // ============================================================
 // Add or remove INDY from existing staking position.
 // Uses datum field access to propagate lockedAmount and snapshot from input.
+//
+// NOTE: the Collector validator is NOT referenced by the on-chain
+// validateAdjustStakedAmount. See
+// indigo-smart-contracts/src/Indigo/Contracts/Staking/OnChain.hs.
 tx adjust_staking(
     owner_pkh: Bytes,
     indy_policy_id: Bytes,
     indy_asset_name: Bytes,
     adjust_amount: Int,
     position_utxo: UtxoRef,
-    collector_utxo: UtxoRef,
 ) {
     locals {
         indy_change: AnyAsset(indy_policy_id, indy_asset_name, adjust_amount),
@@ -1308,10 +1370,6 @@ tx adjust_staking(
         ref: staking_ref,
     }
 
-    reference collector_script {
-        ref: collector_ref,
-    }
-
     // Spend Staking Position UTxO
     input position_input {
         ref: position_utxo,
@@ -1319,13 +1377,6 @@ tx adjust_staking(
         redeemer: StakingRedeemer::StAdjustStakedAmount {
             st_amount: adjust_amount,
         },
-    }
-
-    // Spend Collector UTxO (continuity)
-    input collector_input {
-        ref: collector_utxo,
-        datum_is: UnitDatum,
-        redeemer: CollectorRedeemer::Collect {},
     }
 
     // User provides more INDY (if adding) + fees
@@ -1338,13 +1389,6 @@ tx adjust_staking(
     output {
         to: StakingScript,
         amount: position_input + indy_change,
-        datum: UnitDatum {},
-    }
-
-    // Return Collector UTxO
-    output {
-        to: CollectorScript,
-        amount: collector_input,
         datum: UnitDatum {},
     }
 
@@ -1368,10 +1412,13 @@ tx adjust_staking(
 // 9. UNSTAKE [V1/V2 on-chain — empty datums]
 // ============================================================
 // Close staking position entirely and withdraw all INDY + earned ADA rewards.
+//
+// NOTE: the Collector validator is NOT referenced by the on-chain
+// validateUnstake. See
+// indigo-smart-contracts/src/Indigo/Contracts/Staking/OnChain.hs.
 tx unstake(
     owner_pkh: Bytes,
     position_utxo: UtxoRef,
-    collector_utxo: UtxoRef,
 ) {
     validity {
         since_slot: tip_slot(),
@@ -1382,10 +1429,6 @@ tx unstake(
         ref: staking_ref,
     }
 
-    reference collector_script {
-        ref: collector_ref,
-    }
-
     // Spend Staking Position UTxO (consumed entirely)
     input position_input {
         ref: position_utxo,
@@ -1393,24 +1436,10 @@ tx unstake(
         redeemer: StakingRedeemer::StUnstake {},
     }
 
-    // Spend Collector UTxO (continuity)
-    input collector_input {
-        ref: collector_utxo,
-        datum_is: UnitDatum,
-        redeemer: CollectorRedeemer::Collect {},
-    }
-
     // User provides ADA for fees
     input* source {
         from: User,
         min_amount: fees,
-    }
-
-    // Return Collector UTxO
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
     }
 
     // User gets back all INDY + accumulated ADA rewards

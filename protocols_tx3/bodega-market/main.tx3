@@ -234,11 +234,16 @@ type PredictionRedeemer {
 // The batcher will later consume this UTxO, mint share tokens,
 // and send them to the user.
 //
+// Reads from ProjectInfoDatum (reference input):
+//   outref_id
+//
 // Params:
+//   project_info_ref    — UTxO holding the ProjectInfoDatum for this market
 //   buy_amount          — number of shares to buy
 //   batcher_fee_amount  — batcher processing fee (typically 700000 lovelace)
-//   admin_fee_percent   — admin fee in base 10000 (e.g. 200 = 2%)
-//   unit_price          — AMM price per share in lovelace at time of buy
+//   admin_fee_percent   — admin fee in base 10000 (e.g. 200 = 2%, 10 = 0.1% for BODEGA holders)
+//                         NOTE: can differ from ProjectInfoDatum.admin_fee_percent (fee tiers)
+//   unit_price          — LMSR average price per share for this trade (off-chain computed)
 //   total_lovelace      — pre-computed total ADA for position UTxO
 //                         Pre-computed by caller because tx3 lacks * and / operators.
 //
@@ -246,20 +251,20 @@ type PredictionRedeemer {
 tx buy_position_yes(
     user_pkh: Bytes,
     user_stake_key: Bytes,
-    project_outref_tx: Bytes,
-    project_outref_idx: Int,
+    project_info_ref: UtxoRef,
     buy_amount: Int,
     batcher_fee_amount: Int,
     admin_fee_percent: Int,
     unit_price: Int,
     total_lovelace: Int,
 ) {
-    validity {
-        until_slot: tip_slot() + 600,
+    reference project_info {
+        ref: project_info_ref,
+        datum_is: ProjectInfoDatum,
     }
 
-    metadata {
-        674: "Bodega Market - Buy Position Yes",
+    validity {
+        until_slot: tip_slot() + 600,
     }
 
     input* source {
@@ -271,10 +276,7 @@ tx buy_position_yes(
         to: PositionScript,
         amount: Ada(total_lovelace),
         datum: PositionDatum {
-            outref_id: OutputRef {
-                tx_hash: project_outref_tx,
-                output_index: project_outref_idx,
-            },
+            outref_id: project_info.outref_id,
             pos_user_pkh: user_pkh,
             pos_user_stake_key: OptionPkh::SomePkh {
                 value: user_stake_key,
@@ -297,14 +299,18 @@ tx buy_position_yes(
 tx buy_position_no(
     user_pkh: Bytes,
     user_stake_key: Bytes,
-    project_outref_tx: Bytes,
-    project_outref_idx: Int,
+    project_info_ref: UtxoRef,
     buy_amount: Int,
     batcher_fee_amount: Int,
     admin_fee_percent: Int,
     unit_price: Int,
     total_lovelace: Int,
 ) {
+    reference project_info {
+        ref: project_info_ref,
+        datum_is: ProjectInfoDatum,
+    }
+
     validity {
         until_slot: tip_slot() + 600,
     }
@@ -322,10 +328,7 @@ tx buy_position_no(
         to: PositionScript,
         amount: Ada(total_lovelace),
         datum: PositionDatum {
-            outref_id: OutputRef {
-                tx_hash: project_outref_tx,
-                output_index: project_outref_idx,
-            },
+            outref_id: project_info.outref_id,
             pos_user_pkh: user_pkh,
             pos_user_stake_key: OptionPkh::SomePkh {
                 value: user_stake_key,
@@ -351,18 +354,26 @@ tx buy_position_no(
 // the shares and distributing rewards proportionally.
 //
 // No validator interaction needed — anyone can send to a script address.
+//
+// Reads from ProjectInfoDatum (reference input):
+//   outref_id (in datum only — amount expressions can't use reference fields yet)
+//
 // Split into _yes/_no variants because trix invoke doesn't support enum params.
 tx submit_reward_yes(
     user_pkh: Bytes,
     user_stake_key: Bytes,
+    project_info_ref: UtxoRef,
     share_policy_id: Bytes,
-    project_outref_tx: Bytes,
-    project_outref_idx: Int,
-    envelope_amount: Int,
     candidate_name: Bytes,
+    envelope_amount: Int,
     share_amount: Int,
     batcher_fee_amount: Int,
 ) {
+    reference project_info {
+        ref: project_info_ref,
+        datum_is: ProjectInfoDatum,
+    }
+
     locals {
         shares: AnyAsset(share_policy_id, candidate_name, share_amount),
     }
@@ -384,10 +395,7 @@ tx submit_reward_yes(
         to: PositionScript,
         amount: Ada(envelope_amount + batcher_fee_amount) + shares,
         datum: PositionDatum {
-            outref_id: OutputRef {
-                tx_hash: project_outref_tx,
-                output_index: project_outref_idx,
-            },
+            outref_id: project_info.outref_id,
             pos_user_pkh: user_pkh,
             pos_user_stake_key: OptionPkh::SomePkh {
                 value: user_stake_key,
@@ -410,14 +418,18 @@ tx submit_reward_yes(
 tx submit_reward_no(
     user_pkh: Bytes,
     user_stake_key: Bytes,
+    project_info_ref: UtxoRef,
     share_policy_id: Bytes,
-    project_outref_tx: Bytes,
-    project_outref_idx: Int,
-    envelope_amount: Int,
     candidate_name: Bytes,
+    envelope_amount: Int,
     share_amount: Int,
     batcher_fee_amount: Int,
 ) {
+    reference project_info {
+        ref: project_info_ref,
+        datum_is: ProjectInfoDatum,
+    }
+
     locals {
         shares: AnyAsset(share_policy_id, candidate_name, share_amount),
     }
@@ -439,10 +451,7 @@ tx submit_reward_no(
         to: PositionScript,
         amount: Ada(envelope_amount + batcher_fee_amount) + shares,
         datum: PositionDatum {
-            outref_id: OutputRef {
-                tx_hash: project_outref_tx,
-                output_index: project_outref_idx,
-            },
+            outref_id: project_info.outref_id,
             pos_user_pkh: user_pkh,
             pos_user_stake_key: OptionPkh::SomePkh {
                 value: user_stake_key,
@@ -468,26 +477,29 @@ tx submit_reward_no(
 // burning them, and returning payment at the recorded AMM price.
 //
 // On-chain, the Bodega dApp calls this "Sell Position".
-// pos_admin_fee_percent and pos_unit_price record the AMM state at sell time.
+// pos_unit_price records the AMM state at sell time.
+//
+// Reads from ProjectInfoDatum (reference input):
+//   outref_id (in datum only — amount expressions can't use reference fields yet)
 //
 // Split into _yes/_no variants because trix invoke doesn't support enum params.
 tx sell_position_yes(
     user_pkh: Bytes,
     user_stake_key: Bytes,
-    project_outref_tx: Bytes,
-    project_outref_idx: Int,
+    project_info_ref: UtxoRef,
     envelope_amount: Int,
     share_amount: Int,
     batcher_fee_amount: Int,
     admin_fee_percent: Int,
     unit_price: Int,
 ) {
-    validity {
-        until_slot: tip_slot() + 600,
+    reference project_info {
+        ref: project_info_ref,
+        datum_is: ProjectInfoDatum,
     }
 
-    metadata {
-        674: "Bodega Market - Sell Position Yes",
+    validity {
+        until_slot: tip_slot() + 600,
     }
 
     input* source {
@@ -499,10 +511,7 @@ tx sell_position_yes(
         to: PositionScript,
         amount: Ada(envelope_amount + batcher_fee_amount),
         datum: PositionDatum {
-            outref_id: OutputRef {
-                tx_hash: project_outref_tx,
-                output_index: project_outref_idx,
-            },
+            outref_id: project_info.outref_id,
             pos_user_pkh: user_pkh,
             pos_user_stake_key: OptionPkh::SomePkh {
                 value: user_stake_key,
@@ -525,14 +534,18 @@ tx sell_position_yes(
 tx sell_position_no(
     user_pkh: Bytes,
     user_stake_key: Bytes,
-    project_outref_tx: Bytes,
-    project_outref_idx: Int,
+    project_info_ref: UtxoRef,
     envelope_amount: Int,
     share_amount: Int,
     batcher_fee_amount: Int,
     admin_fee_percent: Int,
     unit_price: Int,
 ) {
+    reference project_info {
+        ref: project_info_ref,
+        datum_is: ProjectInfoDatum,
+    }
+
     validity {
         until_slot: tip_slot() + 600,
     }
@@ -550,10 +563,7 @@ tx sell_position_no(
         to: PositionScript,
         amount: Ada(envelope_amount + batcher_fee_amount),
         datum: PositionDatum {
-            outref_id: OutputRef {
-                tx_hash: project_outref_tx,
-                output_index: project_outref_idx,
-            },
+            outref_id: project_info.outref_id,
             pos_user_pkh: user_pkh,
             pos_user_stake_key: OptionPkh::SomePkh {
                 value: user_stake_key,

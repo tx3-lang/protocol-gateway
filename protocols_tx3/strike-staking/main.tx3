@@ -28,11 +28,11 @@ env {
     // The "tracker" token asset name (same for all stakers in this deployment)
     tracker_asset_name: Bytes,
 
-    // Reference UTxO for the spend validator script (on-chain reference script)
-    spend_script_ref: UtxoRef,
-
-    // Reference UTxO for the mint validator script (on-chain reference script)
-    mint_script_ref: UtxoRef,
+    // Reference UTxO for the Strike script (used for both SPEND and MINT).
+    // The spend validator and mint policy share the same script hash, so
+    // the same reference UTxO serves both purposes. Using one reference
+    // block avoids duplicate entries in the reference_inputs set.
+    strike_script_ref: UtxoRef,
 }
 
 // --- Types ---
@@ -70,59 +70,66 @@ type MintRedeemer {
 //   - owner identifier NFT (mint_policy_id / owner_pkh, qty=1)  — returned to staker
 //
 // Params:
-//   owner_pkh  — staker's payment key hash (required signer + owner NFT asset name)
-//   amount     — quantity of STRIKE tokens to stake
+//   owner_pkh     — staker's payment key hash (required signer + owner NFT asset name)
+//   amount        — quantity of STRIKE tokens to stake
+//   staked_at     — POSIX timestamp in milliseconds (caller-provided, see limitation #3)
 tx stake(
     owner_pkh: Bytes,
-    stake_amount: Int,
-    staked_at_time: Int,
+    amount: Int,
+    staked_at: Int,
 ) {
     locals {
         tracker_token: AnyAsset(mint_policy_id, tracker_asset_name, 1),
         owner_nft: AnyAsset(mint_policy_id, owner_pkh, 1),
-        strike: AnyAsset(staking_policy_id, staking_asset_name, stake_amount),
-        credential_policy: mint_policy_id,
+        strike: AnyAsset(staking_policy_id, staking_asset_name, amount),
     }
 
     validity {
         until_slot: tip_slot() + 200,
     }
 
-    reference spend_script {
-        ref: spend_script_ref,
+    // Single reference block — same UTxO serves as ref script for both
+    // SPEND (consuming the stake UTxO) and MINT (minting tracker + owner NFT).
+    // Both use the same script hash, so one reference input suffices.
+    reference strike_script {
+        ref: strike_script_ref,
     }
 
-    reference mint_script {
-        ref: mint_script_ref,
-    }
-
-    // Collect STRIKE + ADA for minUTxO from the staker
+    // Collect STRIKE + ADA (2.5 ADA for stake UTxO + fees) from the staker
     input* source {
         from: Staker,
-        min_amount: fees + min_utxo(stake_utxo) + strike,
+        min_amount: fees + Ada(2500000) + strike,
     }
 
     // Mint tracker token (locked in script) + owner NFT (returned to staker)
     mint {
         amount: tracker_token + owner_nft,
-        redeemer: MintRedeemer::Mint { amount: stake_amount, },
+        redeemer: MintRedeemer::Mint { amount: amount, },
     }
 
     // New staking UTxO at the script address (includes owner NFT locked in script)
+    //
+    // NOTE: the Strike validator enforces a minimum of 2.5 ADA in the stake UTxO:
+    //   lib/constants.ak:       pub const min_lovelace_in_utxo = 2_500_000
+    //   validators/staking.ak:  lovelace_of(output_to_validator.value) >= min_lovelace_in_utxo
+    //
+    // trix's min_utxo() returns ~1.81 ADA based on coinsPerUTxOByte, which is
+    // below the contract's hard-coded 2.5 ADA floor. We must pass Ada(2500000)
+    // explicitly here, otherwise the mint validator fails silently (no trace).
     output stake_utxo {
         to: StakingScript,
-        amount: min_utxo(stake_utxo) + strike + tracker_token + owner_nft,
+        amount: Ada(2500000) + strike + tracker_token + owner_nft,
         datum: StakingDatum {
             owner_address_hash: owner_pkh,
-            staked_at: staked_at_time, // (slot_to_time(tip_slot()) + 200),
-            mint_policy_id: credential_policy,
+            staked_at: staked_at, // (slot_to_time(tip_slot()) + 200),
+            mint_policy_id: mint_policy_id,
         },
     }
 
     // Leftover ADA/change back to staker
     output {
         to: Staker,
-        amount: source - fees - min_utxo(stake_utxo) - strike,
+        amount: source - fees - Ada(2500000) - strike,
     }
 
     collateral {
@@ -148,16 +155,16 @@ tx add_stake(
     owner_pkh: Bytes,
     staking_utxo: UtxoRef,
     additional_amount: Int,
-    staked_at_time: Int,
 ) {
     locals {
         owner_nft: AnyAsset(mint_policy_id, owner_pkh, 1),
         extra_strike: AnyAsset(staking_policy_id, staking_asset_name, additional_amount),
-        credential_policy: mint_policy_id,
     }
 
-    reference spend_script {
-        ref: spend_script_ref,
+    // Reference to the Strike script (used for SPEND here; MINT not needed
+    // since add_stake neither mints nor burns — it only updates the position).
+    reference strike_script {
+        ref: strike_script_ref,
     }
 
     // Spend existing staking UTxO with the AddStake redeemer
@@ -177,11 +184,7 @@ tx add_stake(
     output {
         to: StakingScript,
         amount: current_stake + extra_strike,
-        datum: StakingDatum {
-            owner_address_hash: owner_pkh,
-            staked_at: staked_at_time,
-            mint_policy_id: credential_policy,
-        },
+        datum: StakingDatum { ...current_stake },
     }
 
     // Return owner NFT + remaining ADA to staker
@@ -218,12 +221,10 @@ tx withdraw_stake(
         owner_nft: AnyAsset(mint_policy_id, owner_pkh, 1),
     }
 
-    reference spend_script {
-        ref: spend_script_ref,
-    }
-
-    reference mint_script {
-        ref: mint_script_ref,
+    // Single reference block — same UTxO serves as ref script for both
+    // SPEND (consuming the stake UTxO) and MINT (burning tracker + owner NFT).
+    reference strike_script {
+        ref: strike_script_ref,
     }
 
     // Spend the staking UTxO with the WithdrawStake redeemer
