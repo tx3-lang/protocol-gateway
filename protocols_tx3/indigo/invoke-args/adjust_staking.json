@@ -5,6 +5,5 @@
     "indy_policy_id": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0",
     "indy_asset_name": "494e4459",
     "adjust_amount": 1000000,
-    "position_utxo": "68e73dcb67ffa825bd5f931a9d99ae8375fc44794f09768229dd677efaa87107#1",
-    "collector_utxo": "4016aa6a1cba79171659f72f9924127c662fad7bcabacc5207807e49f8d8be82#2"
+    "position_utxo": "68e73dcb67ffa825bd5f931a9d99ae8375fc44794f09768229dd677efaa87107#1"
 }

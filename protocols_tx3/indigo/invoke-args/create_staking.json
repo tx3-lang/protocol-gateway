@@ -1,12 +1,9 @@
 {
-    "user": "addr1qxhyn5dfh59jnp4yv4hgt4nn9d2d3wu5qn5zrru59zf3526pehzsuc97d78lxg3444g2fj9aw7dlg9gzalvtda2navwq7sy3q2",
+    "user": "addr1qyn6zgeahkla9f493mqhfxu745c0agz07rf5yypsptmmcgdtkqe6caqp09uvv3ad20zttqt2fpv57aq9lrwxztvz9rvsndpqk8",
     "cdpuseraddr": "addr1zyyqtkz5rken7jzptp076np606r79lmsrqjrqw8sdn4kvr8laappp9ppy8elg20zd9ckuzdm3dg356ak2y5ka75wuj9sjwah49",
-    "owner_pkh": "ae49d1a9bd0b2986a4656e85d6732b54d8bb9404e8218f9428931a2b",
-    "indy_amount": 1000000,
-    "indy_policy_id": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0",
-    "indy_asset_name": "494e4459",
-    "staking_token_policy_id": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0",
-    "staking_token_name": "7374616b696e675f746f6b656e",
-    "manager_utxo": "188fe0b523a4c94d8e696c81657b5a2e0aa11c4ec626bb0792db9b36a9c9fb8b#1",
-    "collector_utxo": "4016aa6a1cba79171659f72f9924127c662fad7bcabacc5207807e49f8d8be82#2"
+    "owner_pkh": "27a1233dbb7fba96a53d82e9373d6a187f504fc34d210302b9def086",
+    "indy_amount": 5037405,
+    "manager_utxo": "c54778b4fcb6741eed0d96763328673b4fa9947e0c6e5f29a735197fa94c7279#0",
+    "old_total_stake": 12940017495622,
+    "current_snapshot_ada": 1422553719171
 }
