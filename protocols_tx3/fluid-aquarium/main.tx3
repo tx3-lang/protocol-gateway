@@ -280,7 +280,9 @@ type OracleRedeemer {
 
 tx create_babel_tank(
     tank_ada: Int,
-    tank_datum_cbor: Bytes,
+    owner_payment_hash: Bytes,
+    owner_stake_hash: Bytes,
+    empty_bytes: Bytes,
 ) {
     input source {
         from: User,
@@ -290,7 +292,41 @@ tx create_babel_tank(
     output {
         to: TankUserAddr,
         amount: Ada(tank_ada),
-        datum: tank_datum_cbor,
+        datum: TankDatum {
+            allowed_tokens: [],
+            tank_owner: PlutusAddress {
+                payment: Credential::VerifKey { hash: owner_payment_hash, },
+                stake: MaybeStakeCred::SomeStake {
+                    inline: InlineStake {
+                        cred: Credential::VerifKey { hash: owner_stake_hash, },
+                    },
+                },
+            },
+            whitelisted: [],
+            execution_time: 0,
+            destination: PlutusAddress {
+                payment: Credential::VerifKey { hash: owner_payment_hash, },
+                stake: MaybeStakeCred::SomeStake {
+                    inline: InlineStake {
+                        cred: Credential::VerifKey { hash: owner_stake_hash, },
+                    },
+                },
+            },
+            scheduled_amount: CardanoToken {
+                policy: empty_bytes,
+                name: empty_bytes,
+                amount: 0,
+                divider: 1000000,
+                oracle: MaybeAsset::NoAsset {},
+            },
+            reward: CardanoToken {
+                policy: empty_bytes,
+                name: empty_bytes,
+                amount: 0,
+                divider: 1000000,
+                oracle: MaybeAsset::NoAsset {},
+            },
+        },
     }
 
     output {
@@ -308,7 +344,12 @@ tx create_babel_tank(
 
 tx create_scheduled_tank(
     tank_ada: Int,
-    tank_datum_cbor: Bytes,
+    owner_payment_hash: Bytes,
+    owner_stake_hash: Bytes,
+    empty_bytes: Bytes,
+    execution_time: Int,
+    scheduled_ada: Int,
+    reward_ada: Int,
 ) {
     input source {
         from: User,
@@ -318,7 +359,41 @@ tx create_scheduled_tank(
     output {
         to: TankUserAddr,
         amount: Ada(tank_ada),
-        datum: tank_datum_cbor,
+        datum: TankDatum {
+            allowed_tokens: [],
+            tank_owner: PlutusAddress {
+                payment: Credential::VerifKey { hash: owner_payment_hash, },
+                stake: MaybeStakeCred::SomeStake {
+                    inline: InlineStake {
+                        cred: Credential::VerifKey { hash: owner_stake_hash, },
+                    },
+                },
+            },
+            whitelisted: [],
+            execution_time: execution_time,
+            destination: PlutusAddress {
+                payment: Credential::VerifKey { hash: owner_payment_hash, },
+                stake: MaybeStakeCred::SomeStake {
+                    inline: InlineStake {
+                        cred: Credential::VerifKey { hash: owner_stake_hash, },
+                    },
+                },
+            },
+            scheduled_amount: CardanoToken {
+                policy: empty_bytes,
+                name: empty_bytes,
+                amount: scheduled_ada,
+                divider: 1000000,
+                oracle: MaybeAsset::NoAsset {},
+            },
+            reward: CardanoToken {
+                policy: empty_bytes,
+                name: empty_bytes,
+                amount: reward_ada,
+                divider: 1000000,
+                oracle: MaybeAsset::NoAsset {},
+            },
+        },
     }
 
     output {
