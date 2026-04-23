@@ -1,0 +1,9 @@
+[protocol]
+name = "snek-fun"
+scope = "snek-fun"
+version = "0.1.0"
+description = "Cardano memecoin launchpad — user-facing order flow (place/cancel buy+sell orders)"
+main = "main.tx3"
+
+[ledger]
+family = "cardano"
