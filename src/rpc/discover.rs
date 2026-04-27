@@ -267,8 +267,20 @@ fn common_errors() -> Vec<Value> {
 pub fn generate_openrpc(state: &AppState, protocol_name: &str) -> Value {
     let network = &state.network;
     let mut methods: Vec<Value> = Vec::new();
+    let mut version = String::from("0.1.0");
 
     if let Some(protocol) = state.registry.get(protocol_name) {
+        if let Some(v) = serde_json::to_value(protocol)
+            .ok()
+            .as_ref()
+            .and_then(|p| p.get("spec"))
+            .and_then(|s| s.get("protocol"))
+            .and_then(|p| p.get("version"))
+            .and_then(|v| v.as_str())
+        {
+            version = v.to_string();
+        }
+
         for tx_name in protocol.txs().keys() {
             let (params_descriptors, description) = match protocol.invoke(tx_name, Some(network)) {
                 Ok(mut invocation) => {
@@ -380,7 +392,7 @@ pub fn generate_openrpc(state: &AppState, protocol_name: &str) -> Value {
         "openrpc": "1.4.1",
         "info": {
             "title": format!("{protocol_name} — Tx3 Protocol API"),
-            "version": "0.1.0",
+            "version": version,
             "description": format!(
                 "JSON-RPC 2.0 API for the {protocol_name} protocol. \
                  Active network: {network}."
