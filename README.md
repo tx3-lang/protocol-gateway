@@ -4,6 +4,22 @@ JSON-RPC 2.0 server that dynamically exposes [Tx3](https://github.com/tx3-lang/t
 
 ## Quick start
 
+### Run with Docker
+
+Images are tagged with the short commit sha — pick the most recent one from the [packages page](https://github.com/tx3-lang/protocol-gateway/pkgs/container/protocol-gateway):
+
+```bash
+docker run -p 8080:8080 ghcr.io/tx3-lang/protocol-gateway:<tag>
+```
+
+The image ships with all the protocols in this repository baked in — no additional configuration needed. To serve your own protocols instead, mount a directory of `.tii` files:
+
+```bash
+docker run -p 8080:8080 -v ./my-protocols:/app/protocols ghcr.io/tx3-lang/protocol-gateway:<tag>
+```
+
+### Run from source
+
 ```bash
 cargo run
 ```
