@@ -36,16 +36,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Short sha
-        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ${{ env.IMAGE }}:${{ env.SHORT_SHA }}-${{ matrix.arch }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}-${{ matrix.arch }}
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 
@@ -64,8 +61,7 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          SHORT_SHA=${GITHUB_SHA::7}
-          docker buildx imagetools create -t $IMAGE:$SHORT_SHA \
-            $IMAGE:$SHORT_SHA-amd64 \
-            $IMAGE:$SHORT_SHA-arm64
-          docker buildx imagetools inspect $IMAGE:$SHORT_SHA
+          docker buildx imagetools create -t $IMAGE:$GITHUB_SHA \
+            $IMAGE:$GITHUB_SHA-amd64 \
+            $IMAGE:$GITHUB_SHA-arm64
+          docker buildx imagetools inspect $IMAGE:$GITHUB_SHA
