@@ -12,7 +12,7 @@ El protocolo `strike-staking` ya fue investigado on-chain y reescrito. El tx3 co
 
 ### Investigación on-chain ✅
 
-Ver `investigacion/strike-staking-research.md` para el análisis completo. Resumen ejecutivo:
+Ver `investigation/strike-staking-research.md` para el análisis completo. Resumen ejecutivo:
 
 **Sin NFTs** — El mecanismo de credential NFTs del GitHub público NO existe en el contrato desplegado.
 
@@ -102,7 +102,7 @@ Una vez con los profiles correctos, probar que el servidor JSON-RPC levanta el p
 ## Archivos relevantes
 
 ```
-investigacion/
+investigation/
 ├── main.tx3                    ← copia del tx3 actual (sincronizada)
 ├── strike-staking-research.md  ← investigación on-chain completa
 └── session-prompt.md           ← este archivo

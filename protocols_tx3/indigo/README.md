@@ -65,7 +65,7 @@ Many values must be queried from on-chain UTxO datums before invoking transactio
 
 ## tx3 Limitations
 
-Several tx3 language limitations affect this protocol. The most impactful: **cannot read datum fields from reference inputs**, requiring ~20 extra parameters that could otherwise be extracted automatically. For the full list, see [investigacion/tx3-limitations-indigo.md](investigacion/tx3-limitations-indigo.md).
+Several tx3 language limitations affect this protocol. The most impactful: **cannot read datum fields from reference inputs**, requiring ~20 extra parameters that could otherwise be extracted automatically. For the full list, see [investigation/tx3-limitations-indigo.md](investigation/tx3-limitations-indigo.md).
 
 ## Smart Contracts
 

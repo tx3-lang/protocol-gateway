@@ -1,63 +1,63 @@
-# Investigación de Protocolos Cardano para Transaction Builder
+# Cardano Protocols Research for Transaction Builder
 
-**Fecha:** Marzo 2026  
-**Objetivo:** Evaluar la disponibilidad de documentación, código open source, archivos plutus/blueprint, y ejemplos de integración con transaction builders (MeshJS, Lucid, u otros) para los siguientes protocolos:
+**Date:** March 2026  
+**Objective:** Evaluate the availability of documentation, open source code, plutus/blueprint files, and integration examples with transaction builders (MeshJS, Lucid, or others) for the following protocols:
 
 ---
 
-## Resumen Ejecutivo
+## Executive Summary
 
-| Protocolo | Open Source | Plutus/Blueprint | Docs Dev | SDK/Transaction Builder | Dificultad de Integración |
+| Protocol | Open Source | Plutus/Blueprint | Dev Docs | SDK/Transaction Builder | Integration Difficulty |
 |-----------|-------------|-------------------|----------|-------------------------|---------------------------|
-| Fluid (Aquarium) | ✅ Parcial | ⚠️ No confirmado | ✅ Sí | ❌ No oficial | Alta |
-| Strike Finance | ✅ Sí (Aiken) | ✅ Sí (blueprint) | ✅ Sí | ⚠️ SDK propio | Media |
-| Bodega Market | ✅ Sí | ⚠️ Posible | ✅ Sí | ❌ No oficial | Alta |
-| Indigo Protocol | ✅ Sí (BUSL-1.1) | ⚠️ No publicado | ✅ Sí | ⚠️ SDK propio | Alta |
-| VyFi | ⚠️ Parcial | ⚠️ Registro parcial | ⚠️ Limitada | ❌ No oficial | Muy Alta |
-| Moneta (USDM) | ❌ No | ❌ No | ⚠️ Mínima | ❌ No aplica | N/A (Nativo) |
+| Fluid (Aquarium) | ✅ Partial | ⚠️ Not confirmed | ✅ Yes | ❌ Not official | High |
+| Strike Finance | ✅ Yes (Aiken) | ✅ Yes (blueprint) | ✅ Yes | ⚠️ Proprietary SDK | Medium |
+| Bodega Market | ✅ Yes | ⚠️ Possible | ✅ Yes | ❌ Not official | High |
+| Indigo Protocol | ✅ Yes (BUSL-1.1) | ⚠️ Not published | ✅ Yes | ⚠️ Proprietary SDK | High |
+| VyFi | ⚠️ Partial | ⚠️ Partial registry | ⚠️ Limited | ❌ Not official | Very High |
+| Moneta (USDM) | ❌ No | ❌ No | ⚠️ Minimal | ❌ Not applicable | N/A (Native) |
 
 ---
 
-## 1. Fluid Tokens — Protocolo Aquarium
+## 1. Fluid Tokens — Aquarium Protocol
 
-### ¿Qué es?
-Aquarium es el protocolo de FluidTokens que permite pagar fees de transacción con tokens nativos en lugar de ADA. Es el primer mercado de fees descentralizado en Cardano. También habilita **transacciones automáticas** (Scheduled Transactions) mediante una red de validadores que ejecutan transacciones cuando se cumplen condiciones predefinidas.
+### What is it?
+Aquarium is FluidTokens' protocol that allows paying transaction fees with native tokens instead of ADA. It is the first decentralized fee market on Cardano. It also enables **automatic transactions** (Scheduled Transactions) through a network of validators that execute transactions when predefined conditions are met.
 
 ### Open Source
 - **Aquarium Node (Java):** [github.com/FluidTokens/ft-aquarium-node](https://github.com/FluidTokens/ft-aquarium-node)
-  - Implementado en Java con Yaci Store
-  - Indexa UTxOs de los contratos de Aquarium
-  - Procesa Scheduled Transactions cuando se cumplen condiciones
-- **MVP de Smart Contracts:** [github.com/FluidTokens/ft-aquarium-automatic-sc-mvp](https://github.com/FluidTokens/ft-aquarium-automatic-sc-mvp)
-  - Versión MVP de las reglas de Aquarium
-- La organización FluidTokens tiene **16 repositorios** en GitHub
+  - Implemented in Java with Yaci Store
+  - Indexes UTxOs of the Aquarium contracts
+  - Processes Scheduled Transactions when conditions are met
+- **Smart Contracts MVP:** [github.com/FluidTokens/ft-aquarium-automatic-sc-mvp](https://github.com/FluidTokens/ft-aquarium-automatic-sc-mvp)
+  - MVP version of the Aquarium rules
+- The FluidTokens organization has **16 repositories** on GitHub
 
-### Documentación
-- **Docs oficiales:** [docs.fluidtokens.com/cardano/aquarium/](https://docs.fluidtokens.com/cardano/aquarium/)
+### Documentation
+- **Official docs:** [docs.fluidtokens.com/cardano/aquarium/](https://docs.fluidtokens.com/cardano/aquarium/)
 - **Developer Portal:** [github.com/FluidTokens/developer-portal](https://github.com/FluidTokens/developer-portal)
 
-### Archivos Plutus / Blueprint
-- Los smart contracts están listados como open source según la documentación oficial
-- **No se encontró un archivo `plutus.json` o blueprint publicado directamente** en los repos encontrados
-- Los contratos del nodo usan Blockfrost para interactuar con la cadena
+### Plutus / Blueprint Files
+- The smart contracts are listed as open source according to the official documentation
+- **No published `plutus.json` or blueprint file was found directly** in the repos found
+- The node contracts use Blockfrost to interact with the chain
 
-### Integración con Transaction Builder
-- **No existe integración oficial con MeshJS o Lucid**
-- Para integrarse, se debe:
-  1. Consultar el endpoint de Aquarium para obtener los Tanks disponibles
-  2. Construir una transacción que incluya los Tanks necesarios (el smart contract verifica que se envíen los tokens requeridos)
-  3. Usar MeshJS o Lucid para construir dicha transacción
+### Transaction Builder Integration
+- **No official integration with MeshJS or Lucid exists**
+- To integrate, you must:
+  1. Query the Aquarium endpoint to obtain the available Tanks
+  2. Build a transaction that includes the necessary Tanks (the smart contract verifies that the required tokens are sent)
+  3. Use MeshJS or Lucid to build said transaction
 
-### Notas Técnicas
+### Technical Notes
 ```
-Componentes principales:
-- FeeTanks: UTxOs con ADA para patrocinar fees
-- Aquarium Lambdas: condiciones bajo las cuales se puede gastar ADA de los tanks
-- Validadores: red de operadores con 30k FLDT en stake
-- Parámetros: ratio ADA/token (estático o dinámico por oracle)
+Main components:
+- FeeTanks: UTxOs with ADA to sponsor fees
+- Aquarium Lambdas: conditions under which ADA from the tanks can be spent
+- Validators: network of operators with 30k FLDT staked
+- Parameters: ADA/token ratio (static or dynamic via oracle)
 ```
 
-### Recursos
+### Resources
 - Docs: https://docs.fluidtokens.com/protocols/aquarium/
 - GitHub Org: https://github.com/fluidtokens
 
@@ -65,261 +65,261 @@ Componentes principales:
 
 ## 2. Strike Finance
 
-### ¿Qué es?
-Protocolo de derivados descentralizado en Cardano. Ofrece trading de **opciones, forwards y contratos perpetuos** (futuros sin fecha de vencimiento). Strike V1 se lanzó en mainnet en mayo 2025 utilizando el modelo GMX original, donde los proveedores de liquidez actúan como contraparte de los traders.
+### What is it?
+Decentralized derivatives protocol on Cardano. It offers trading of **options, forwards, and perpetual contracts** (futures with no expiration date). Strike V1 launched on mainnet in May 2025 using the original GMX model, where liquidity providers act as counterparty to the traders.
 
 ### Open Source
-Strike Finance es **completamente open source**. Sus repositorios en GitHub:
+Strike Finance is **fully open source**. Its GitHub repositories:
 - **Perpetuals:** [github.com/strike-finance/perpetuals-smart-contracts](https://github.com/strike-finance/perpetuals-smart-contracts)
 - **Forwards:** [github.com/strike-finance/forwards-smart-contracts](https://github.com/strike-finance/forwards-smart-contracts)
 - **Options:** [github.com/strike-finance/options-smart-contracts](https://github.com/strike-finance/options-smart-contracts)
 - **Staking:** [github.com/strike-finance/staking-smart-contracts](https://github.com/strike-finance/staking-smart-contracts)
 - **SDK v1:** [github.com/strike-finance/strike-sdk-v1](https://github.com/strike-finance/strike-sdk-v1)
 
-### Lenguaje de Smart Contracts
-Los contratos están escritos en **Aiken** (lenguaje moderno de Cardano que compila a Plutus Core). Requiere Aiken instalado en el PATH:
+### Smart Contract Language
+The contracts are written in **Aiken** (modern Cardano language that compiles to Plutus Core). Requires Aiken installed in the PATH:
 ```bash
-# Agregar Aiken al PATH en ~/.zshrc o ~/.bashrc
+# Add Aiken to the PATH in ~/.zshrc or ~/.bashrc
 ```
 
-### Archivos Plutus / Blueprint
-- Al usar **Aiken**, se genera automáticamente un archivo `plutus.json` (blueprint) al compilar
-- El blueprint contiene las definiciones de validadores, tipos de datum/redeemer y hashes de los scripts
-- Los repos de Aiken típicamente incluyen `plutus.json` en la raíz o en el directorio `build/`
+### Plutus / Blueprint Files
+- By using **Aiken**, a `plutus.json` file (blueprint) is automatically generated upon compilation
+- The blueprint contains the validator definitions, datum/redeemer types, and script hashes
+- Aiken repos typically include `plutus.json` in the root or in the `build/` directory
 
 ### SDK / Transaction Builder
-- **Strike SDK v1** disponible en GitHub
-- Permite interactuar con los contratos desde JavaScript/TypeScript
-- Tiene integración con **hummingbot** para bots de trading
+- **Strike SDK v1** available on GitHub
+- Allows interacting with the contracts from JavaScript/TypeScript
+- Has integration with **hummingbot** for trading bots
 
-### Auditoría
-- Auditoría de los contratos perpetuos realizada y publicada en el repo
+### Audit
+- Audit of the perpetuals contracts performed and published in the repo
 
-### Documentación
-- **Docs oficiales:** [docs.strikefinance.org](https://docs.strikefinance.org/)
-- Tiene documentación detallada de los contratos
+### Documentation
+- **Official docs:** [docs.strikefinance.org](https://docs.strikefinance.org/)
+- Has detailed documentation of the contracts
 
-### Notas Técnicas
+### Technical Notes
 ```
-Modelo de perpetuos (GMX-style):
-- Traders abren posiciones long/short con apalancamiento
-- Collateral requerido (puede ser el activo subyacente o stablecoin)
-- Liquidación cuando el collateral cae a un % de su valor original
-- STRIKE como colateral adicional (quema en liquidación)
-- Stop loss / take profit automatizados
-- Funding rate para mantener precio perpetuo alineado con spot
+Perpetuals model (GMX-style):
+- Traders open long/short positions with leverage
+- Required collateral (can be the underlying asset or stablecoin)
+- Liquidation when collateral falls to a % of its original value
+- STRIKE as additional collateral (burned on liquidation)
+- Automated stop loss / take profit
+- Funding rate to keep the perpetual price aligned with spot
 ```
 
 ---
 
 ## 3. Bodega Market
 
-### ¿Qué es?
-Plataforma de **mercados de predicción descentralizados** sobre la blockchain de Cardano. Permite a usuarios crear, tradear y resolver mercados de predicción sobre eventos del mundo real (deportes, política) y eventos on-chain (precio de ADA, MIN, SNEK, etc.).
+### What is it?
+A **decentralized prediction markets** platform on the Cardano blockchain. It allows users to create, trade, and resolve prediction markets on real-world events (sports, politics) and on-chain events (price of ADA, MIN, SNEK, etc.).
 
 ### Open Source
 - **Smart Contracts V2:** [github.com/bodega-market/bodega-market-smart-contracts-v2](https://github.com/bodega-market/bodega-market-smart-contracts-v2)
 - **Smart Contracts V1:** [github.com/bodega-market/bodega-market-smart-contracts](https://github.com/bodega-market/bodega-market-smart-contracts)
-  - Nota: V1 todavía en alpha, no recomendado para producción
+  - Note: V1 still in alpha, not recommended for production
 - **Docs:** [github.com/bodega-market/bodega-market-docs](https://github.com/bodega-market/bodega-market-docs)
 
-### Archivos Plutus / Blueprint
-- El contrato V2 está documentado con las instrucciones de deployment
-- **No se encontró un archivo blueprint público explícito** en las búsquedas
-- El V1 está en alpha y sujeto a cambios breaking
+### Plutus / Blueprint Files
+- The V2 contract is documented with deployment instructions
+- **No explicit public blueprint file was found** in the searches
+- V1 is in alpha and subject to breaking changes
 
-### Flujo del Protocolo (según V2)
+### Protocol Flow (per V2)
 ```
-1. Configuración del protocolo:
-   - Mint de tokens de settings y autenticación del manager
-   - Envío a script addresses correspondientes
-   - Mint de reference script tokens
+1. Protocol setup:
+   - Mint of settings tokens and manager authentication
+   - Sending to corresponding script addresses
+   - Mint of reference script tokens
 
-2. Configuración del proyecto:
-   - Mint de authentication tokens
-   - Envío a project info UTxO con pledge
-   - Transferencia de open fee al treasury
+2. Project setup:
+   - Mint of authentication tokens
+   - Sending to project info UTxO with pledge
+   - Transfer of open fee to treasury
 
-3. Participación del usuario:
-   - Usuario envía payment tokens a script address con datum
-   - Batcher colecta posiciones y las aplica al proyecto
-   - Usuario recibe share tokens proporcionales
+3. User participation:
+   - User sends payment tokens to script address with datum
+   - Batcher collects positions and applies them to the project
+   - User receives proportional share tokens
 
-4. Resolución:
-   - Distribución de rewards entre creador del proyecto y protocolo
-   - Ratio determinado por share_ratio en project info datum
+4. Resolution:
+   - Distribution of rewards between project creator and protocol
+   - Ratio determined by share_ratio in the project info datum
 ```
 
-### Documentación
-- **Docs oficiales:** [docs.bodegacardano.org](https://docs.bodegacardano.org)
-- Tiene sección de protocolo con contratos, características, staking, etc.
+### Documentation
+- **Official docs:** [docs.bodegacardano.org](https://docs.bodegacardano.org)
+- Has a protocol section with contracts, features, staking, etc.
 
-### Integración con Transaction Builder
-- **No existe integración oficial con MeshJS o Lucid**
-- Se puede implementar usando los contratos V2 como referencia
+### Transaction Builder Integration
+- **No official integration with MeshJS or Lucid exists**
+- Can be implemented using the V2 contracts as a reference
 
 ---
 
 ## 4. Indigo Protocol
 
-### ¿Qué es?
-Protocolo de **activos sintéticos** autónomo en Cardano. Permite crear iAssets (activos sintéticos) que replican el precio de activos del mundo real (iBTC, iETH, iUSD, etc.) usando CDPs (Collateral Debt Positions) con ADA o stablecoins como colateral.
+### What is it?
+An autonomous **synthetic assets** protocol on Cardano. It allows creating iAssets (synthetic assets) that replicate the price of real-world assets (iBTC, iETH, iUSD, etc.) using CDPs (Collateral Debt Positions) with ADA or stablecoins as collateral.
 
 ### Open Source
-Indigo **abrió su código fuente en abril 2023**:
+Indigo **open-sourced its code in April 2023**:
 - **Smart Contracts V1:** [github.com/IndigoProtocol/indigo-smart-contracts](https://github.com/IndigoProtocol/indigo-smart-contracts)
-  - **Licencia: Business Source License 1.1 (BUSL-1.1)** — No es libre para uso comercial hasta que expire
+  - **License: Business Source License 1.1 (BUSL-1.1)** — Not free for commercial use until it expires
 - **SDK:** [github.com/IndigoProtocol/indigo-sdk](https://github.com/IndigoProtocol/indigo-sdk)
 
-### Evolución del Lenguaje
-- **V1:** Escrito en **PlutusTx** con Plutonomy optimizer
-- **V2 (en desarrollo):** Migración a **Aiken** para mejor eficiencia (menor uso de CPU/memoria)
-  - Pruebas mostraron 40-60% de reducción en execution units
+### Language Evolution
+- **V1:** Written in **PlutusTx** with the Plutonomy optimizer
+- **V2 (in development):** Migration to **Aiken** for better efficiency (lower CPU/memory usage)
+  - Tests showed a 40-60% reduction in execution units
 
-### Archivos Plutus / Blueprint
-- Los contratos V1 compilados están disponibles en el repositorio
-- El repo incluye benchmarks en YAML con límites de execution units
-- **Para V2 (Aiken):** Generará blueprint automáticamente al compilar
+### Plutus / Blueprint Files
+- The compiled V1 contracts are available in the repository
+- The repo includes benchmarks in YAML with execution unit limits
+- **For V2 (Aiken):** Will generate a blueprint automatically upon compilation
 
 ### SDK
-- `indigo-sdk` disponible en GitHub
-- Permite calcular rewards INDY y otras interacciones
+- `indigo-sdk` available on GitHub
+- Allows calculating INDY rewards and other interactions
 
-### Documentación
-- **Docs oficiales:** [docs.indigoprotocol.io](https://docs.indigoprotocol.io) (inferido)
-- Bug bounty program activo desde abril 2023
+### Documentation
+- **Official docs:** [docs.indigoprotocol.io](https://docs.indigoprotocol.io) (inferred)
+- Bug bounty program active since April 2023
 
-### Notas Técnicas
+### Technical Notes
 ```
-Componentes del protocolo:
-- CDPs: Minting de iAssets colateralizando ADA (mín 200%) o stablecoins (mín 150%)
-- Stability Pools: Liquidación de CDPs insolventes; stabilitiy providers reciben colateral
-- Governance (INDY): Votación de parámetros del protocolo
-- Liquid Staking: ADA en CDP sigue generando staking rewards
-- Oráculos: Precio de iAssets feed por oráculos descentralizados
+Protocol components:
+- CDPs: Minting of iAssets by collateralizing ADA (min 200%) or stablecoins (min 150%)
+- Stability Pools: Liquidation of insolvent CDPs; stability providers receive collateral
+- Governance (INDY): Voting on protocol parameters
+- Liquid Staking: ADA in a CDP continues to generate staking rewards
+- Oracles: iAsset prices fed by decentralized oracles
 ```
 
-### Restricción BUSL
-> ⚠️ **Importante:** La licencia BUSL-1.1 prohíbe uso comercial de los contratos V1 hasta una fecha de conversión. Para integración en productos comerciales, verificar términos de licencia o usar V2 (Aiken) cuando esté disponible.
+### BUSL Restriction
+> ⚠️ **Important:** The BUSL-1.1 license prohibits commercial use of the V1 contracts until a conversion date. For integration into commercial products, verify the license terms or use V2 (Aiken) when available.
 
 ---
 
 ## 5. VyFi (VyFinance)
 
-### ¿Qué es?
-Protocolo DeFi en Cardano con múltiples productos: **DEX (AMM)**, BAR (mecanismo redistributivo), governance, lotería, y token/NFT Vaults. También tiene un Auto-Harvester que gestiona yield farming usando una Neural Net.
+### What is it?
+DeFi protocol on Cardano with multiple products: **DEX (AMM)**, BAR (redistributive mechanism), governance, lottery, and token/NFT Vaults. It also has an Auto-Harvester that manages yield farming using a Neural Net.
 
 ### Open Source
-La organización VYFI en GitHub tiene repositorios **limitados en scope público**:
+The VYFI organization on GitHub has repositories that are **limited in public scope**:
 - **Cardano Contracts Registry:** [github.com/VYFI/cardano-contracts-registry](https://github.com/VYFI/cardano-contracts-registry)
-  - Contiene registro de contratos Cardano
+  - Contains a registry of Cardano contracts
 - **Metadata Registry Testnet:** [github.com/VYFI/metadata-registry-testnet](https://github.com/VYFI/metadata-registry-testnet)
 
-### Archivos Plutus / Blueprint
-- **No se encontraron archivos plutus.json o blueprints publicados**
-- El `cardano-contracts-registry` puede contener direcciones de scripts pero no el código fuente compilado
-- Los contratos principales del DEX **no parecen estar open source públicamente**
+### Plutus / Blueprint Files
+- **No published plutus.json files or blueprints were found**
+- The `cardano-contracts-registry` may contain script addresses but not the compiled source code
+- The main DEX contracts **do not appear to be publicly open source**
 
-### Documentación
-- **Docs oficiales:** [docs.vyfi.io](https://docs.vyfi.io)
-- Documentación de usuario disponible pero **sin documentación técnica de contratos para developers**
+### Documentation
+- **Official docs:** [docs.vyfi.io](https://docs.vyfi.io)
+- User documentation available but **without technical contract documentation for developers**
 
-### Integración con Transaction Builder
-- **No existe integración oficial con MeshJS, Lucid u otros**
-- Sin acceso a los contratos compilados, la integración requeriría:
-  1. Reverse-engineering de transacciones existentes
-  2. Contactar directamente al equipo de VyFi
-  3. Usar su API (si existe)
+### Transaction Builder Integration
+- **No official integration with MeshJS, Lucid, or others exists**
+- Without access to the compiled contracts, integration would require:
+  1. Reverse-engineering existing transactions
+  2. Contacting the VyFi team directly
+  3. Using their API (if one exists)
 
-### Estado
-> ⚠️ **VyFi es el protocolo con menor disponibilidad de recursos para developers de los 6 investigados.** No se encontró código de contratos público, blueprints, ni SDK. La integración directa en un transaction builder sería significativamente más compleja que los demás protocolos.
+### Status
+> ⚠️ **VyFi is the protocol with the least availability of developer resources among the 6 investigated.** No public contract code, blueprints, or SDK was found. Direct integration into a transaction builder would be significantly more complex than the other protocols.
 
 ---
 
 ## 6. Moneta (USDM)
 
-### ¿Qué es?
-**USDM** es la stablecoin fiat-backed principal de Cardano, emitida por Moneta Digital LLC (empresa registrada como Money Services Business ante FinCEN en EE.UU.). Cada USDM está respaldado 1:1 por dólares en reservas (Fidelity + Western Asset Management). También tiene co-emisor en Europa: **NBX** (bajo regulación MiCA).
+### What is it?
+**USDM** is Cardano's main fiat-backed stablecoin, issued by Moneta Digital LLC (a company registered as a Money Services Business with FinCEN in the U.S.). Each USDM is backed 1:1 by dollars in reserves (Fidelity + Western Asset Management). It also has a co-issuer in Europe: **NBX** (under MiCA regulation).
 
-### Naturaleza del Token
-USDM es un **Cardano Native Token** — **no es un smart contract**. Es un token nativo creado con una minting policy controlada por Moneta Digital. Esto es fundamentalmente diferente a los otros protocolos:
+### Nature of the Token
+USDM is a **Cardano Native Token** — **it is not a smart contract**. It is a native token created with a minting policy controlled by Moneta Digital. This is fundamentally different from the other protocols:
 
-- No requiere smart contracts para transferir
-- Las transacciones son simples transfers de native token
-- Solo Moneta (y NBX en EU) pueden mintear/quemar USDM
+- It does not require smart contracts to transfer
+- Transactions are simple native token transfers
+- Only Moneta (and NBX in the EU) can mint/burn USDM
 
 ### Open Source
-- **No hay código open source del protocolo de minting**
-- El proceso de mint/burn es centralizado y controlado por Moneta
+- **There is no open source code for the minting protocol**
+- The mint/burn process is centralized and controlled by Moneta
 
-### Archivos Plutus
-- La minting policy puede ser un script simple o multi-sig
-- **No está publicado el script de minting policy**
-- Se puede obtener el Policy ID del token consultando on-chain:
-  - Policy ID de USDM: identificable en exploradores como cexplorer.io o pool.pm
+### Plutus Files
+- The minting policy may be a simple or multi-sig script
+- **The minting policy script is not published**
+- The token's Policy ID can be obtained by querying on-chain:
+  - USDM Policy ID: identifiable in explorers such as cexplorer.io or pool.pm
 
-### Integración con Transaction Builder
-Como native token, USDM se puede usar en transacciones normales de Cardano:
+### Transaction Builder Integration
+As a native token, USDM can be used in normal Cardano transactions:
 ```typescript
-// Ejemplo con MeshJS para enviar USDM
+// Example with MeshJS to send USDM
 import { MeshTxBuilder } from "@meshsdk/core";
 
 const tx = new MeshTxBuilder({ fetcher: provider });
 await tx
   .txOut(recipientAddress, [
-    { unit: "USDM_POLICY_ID" + "USDM", quantity: "1000000" } // 1 USDM (6 decimales)
+    { unit: "USDM_POLICY_ID" + "USDM", quantity: "1000000" } // 1 USDM (6 decimals)
   ])
   .complete();
 ```
 
-### Para minting/redención
-- Requiere KYC y cuenta en Moneta (moneta.global) o NBX
-- Monto mínimo de mint: $1,000 USD
-- El proceso es off-chain (depósito bancario → mint on-chain)
+### For minting/redemption
+- Requires KYC and an account with Moneta (moneta.global) or NBX
+- Minimum mint amount: $1,000 USD
+- The process is off-chain (bank deposit → on-chain mint)
 
-### Policy ID de USDM
+### USDM Policy ID
 ```
-Para obtener el Policy ID actual de USDM, consultar:
-- https://cardanoscan.io → buscar "USDM"
-- O consultar directamente en la documentación de Moneta
+To obtain the current Policy ID of USDM, check:
+- https://cardanoscan.io → search for "USDM"
+- Or check directly in the Moneta documentation
 ```
 
 ---
 
-## Recomendaciones para Transaction Builder
+## Recommendations for the Transaction Builder
 
-### Protocolos con mayor viabilidad de integración
+### Protocols with the highest integration viability
 
-#### 🟢 Alta Viabilidad: Strike Finance
-- Contratos en Aiken → blueprint generado automáticamente
-- SDK propio disponible
-- Documentación de contratos buena
-- Open source completo
+#### 🟢 High Viability: Strike Finance
+- Contracts in Aiken → blueprint generated automatically
+- Proprietary SDK available
+- Good contract documentation
+- Fully open source
 
-#### 🟡 Media Viabilidad: Bodega Market & Indigo Protocol
-- Código fuente disponible pero sin SDKs para builders externos
-- Requiere leer contratos y construir integración manual
-- Indigo tiene restricción BUSL-1.1
+#### 🟡 Medium Viability: Bodega Market & Indigo Protocol
+- Source code available but without SDKs for external builders
+- Requires reading contracts and building manual integration
+- Indigo has the BUSL-1.1 restriction
 
-#### 🟡 Media Viabilidad: Fluid Tokens (Aquarium)
-- La lógica de "fee sponsoring" es única y valiosa para UX
-- Hay un developer portal con API endpoints
-- La integración requiere consultar la API de Aquarium + construir tx
+#### 🟡 Medium Viability: Fluid Tokens (Aquarium)
+- The "fee sponsoring" logic is unique and valuable for UX
+- There is a developer portal with API endpoints
+- Integration requires querying the Aquarium API + building the tx
 
-#### 🔴 Baja Viabilidad: VyFi
-- Sin contratos públicos disponibles
-- Sin SDKs oficiales
-- Contactar directamente al equipo
+#### 🔴 Low Viability: VyFi
+- No public contracts available
+- No official SDKs
+- Contact the team directly
 
 #### ⚪ N/A: Moneta (USDM)
-- Es un native token, se integra nativamente en cualquier transaction builder
-- No requiere lógica de smart contract para usar USDM como token de pago
+- It is a native token, integrates natively into any transaction builder
+- Does not require smart contract logic to use USDM as a payment token
 
 ---
 
-## Recursos Adicionales de Transaction Builders para Cardano
+## Additional Transaction Builder Resources for Cardano
 
-| Tool | Lenguaje | Link |
+| Tool | Language | Link |
 |------|----------|------|
 | **MeshJS** | TypeScript | meshjs.dev |
 | **Lucid** (deprecated → Lucid Evolution) | TypeScript | github.com/lucid-evolution |
@@ -330,48 +330,48 @@ Para obtener el Policy ID actual de USDM, consultar:
 
 ---
 
-## Análisis de Viabilidad con Tx3 (Ingeniería Inversa)
+## Viability Analysis with Tx3 (Reverse Engineering)
 
-### ¿Qué es Tx3?
+### What is Tx3?
 
-**Tx3** es un DSL (Domain Specific Language) creado por [TxPipe](https://txpipe.io/) para describir la interfaz de protocolos UTxO en Cardano. Es el "OpenAPI" del mundo eUTxO: permite definir templates de transacciones como funciones parametrizadas, y luego genera bindings de código en TypeScript, Rust, Go o Python.
+**Tx3** is a DSL (Domain Specific Language) created by [TxPipe](https://txpipe.io/) to describe the interface of UTxO protocols on Cardano. It is the "OpenAPI" of the eUTxO world: it allows defining transaction templates as parameterized functions, and then generates code bindings in TypeScript, Rust, Go, or Python.
 
-> Tx3 **no reemplaza los contratos on-chain** (eso sigue siendo Aiken/PlutusTx). Solo describe cómo interactuar con ellos off-chain de forma declarativa.
+> Tx3 **does not replace the on-chain contracts** (those remain Aiken/PlutusTx). It only describes how to interact with them off-chain in a declarative way.
 
-**Componentes clave del lenguaje:**
-- `party` — participantes de la transacción (wallet o script)
-- `policy` — script on-chain (validador o minting policy)
-- `record` — estructuras de datos para datums y redeemers
-- `tx` — template de transacción con inputs, outputs y lógica
+**Key language components:**
+- `party` — transaction participants (wallet or script)
+- `policy` — on-chain script (validator or minting policy)
+- `record` — data structures for datums and redeemers
+- `tx` — transaction template with inputs, outputs, and logic
 
 **Tooling:**
-- `trix` — CLI para init, build, test y bindgen de proyectos Tx3
-- `tx3up` — instalador del ecosistema
-- VSCode extension — syntax highlighting, diagramas, formulario de testing
-- Devnet — red local de pruebas integrada
+- `trix` — CLI for init, build, test, and bindgen of Tx3 projects
+- `tx3up` — ecosystem installer
+- VSCode extension — syntax highlighting, diagrams, testing form
+- Devnet — integrated local test network
 
-### Proceso General de Ingeniería Inversa para Tx3
+### General Reverse Engineering Process for Tx3
 
-Para los protocolos sin blueprint público, el flujo de trabajo sería:
+For protocols without a public blueprint, the workflow would be:
 
-1. **Identificar script addresses** on-chain (desde UI del protocolo o documentación)
-2. **Explorar transacciones históricas** en CardanoScan o Cexplorer
-3. **Decodificar datums CBOR** → inferir tipos y campos
-4. **Identificar redeemers** → qué acciones acepta cada validador
-5. **Escribir los `record`** en Tx3 con los tipos inferidos
-6. **Escribir los `tx` templates** replicando los patrones de UTxOs observados
-7. **Referenciar el script** con `policy NombreScript = import(script.plutus)` o como dirección fija
+1. **Identify script addresses** on-chain (from the protocol UI or documentation)
+2. **Explore historical transactions** on CardanoScan or Cexplorer
+3. **Decode CBOR datums** → infer types and fields
+4. **Identify redeemers** → what actions each validator accepts
+5. **Write the `record`s** in Tx3 with the inferred types
+6. **Write the `tx` templates** replicating the observed UTxO patterns
+7. **Reference the script** with `policy ScriptName = import(script.plutus)` or as a fixed address
 
-### Viabilidad por Protocolo con Tx3
+### Viability by Protocol with Tx3
 
-#### 🟢 Strike Finance — Alta viabilidad
+#### 🟢 Strike Finance — High viability
 
-**Esfuerzo estimado: 1-2 días**
+**Estimated effort: 1-2 days**
 
-Es el caso ideal para Tx3. Los contratos están escritos en Aiken, que genera automáticamente un `plutus.json` con tipos de datum y redeemer completamente tipados. Con ese blueprint se pueden mapear directamente los `record` y `tx` en Tx3 sin ingeniería inversa real.
+This is the ideal case for Tx3. The contracts are written in Aiken, which automatically generates a `plutus.json` with fully typed datum and redeemer types. With that blueprint, the `record`s and `tx`s in Tx3 can be mapped directly without real reverse engineering.
 
 ```
-// Ejemplo conceptual de cómo quedaría el .tx3
+// Conceptual example of how the .tx3 would look
 policy Perpetuals = import(build/perpetuals.plutus);
 
 record OpenPositionDatum {
@@ -394,83 +394,83 @@ tx openPosition(quantity: Int, leverage: Int) {
 }
 ```
 
-**Ventajas:**
-- Blueprint con tipos completos disponible
-- SDK propio como referencia para validar implementación
-- Auditoría publicada facilita entender los flujos
+**Advantages:**
+- Blueprint with complete types available
+- Proprietary SDK as a reference to validate the implementation
+- Published audit makes it easier to understand the flows
 
 ---
 
-#### 🟡 Indigo Protocol — Viabilidad media
+#### 🟡 Indigo Protocol — Medium viability
 
-**Esfuerzo estimado: 3-5 días**
+**Estimated effort: 3-5 days**
 
-El código fuente en PlutusTx (Haskell) está publicado, lo que permite leer los tipos de datum y redeemer directamente. La arquitectura es compleja (CDPs, Stability Pools, oráculos, governance) pero bien documentada en el repositorio. El mayor obstáculo es la **licencia BUSL-1.1** que restringe uso comercial.
+The PlutusTx (Haskell) source code is published, which allows reading the datum and redeemer types directly. The architecture is complex (CDPs, Stability Pools, oracles, governance) but well documented in the repository. The biggest obstacle is the **BUSL-1.1 license** which restricts commercial use.
 
-Para V2 (migración a Aiken, en desarrollo), la viabilidad aumenta significativamente ya que habrá blueprint automático.
+For V2 (migration to Aiken, in development), viability increases significantly since there will be an automatic blueprint.
 
-**Bloqueantes:**
-- Licencia BUSL-1.1: verificar términos antes de integraciones comerciales
-- Múltiples validadores interrelacionados complican los templates
-- Oráculos descentralizados requieren lógica adicional de referencing
-
----
-
-#### 🟡 Bodega Market — Viabilidad media
-
-**Esfuerzo estimado: 3-5 días**
-
-Los contratos V2 están en GitHub. Sin embargo, la documentación técnica interna (tipos de datum, estructura de redeemers) no está detallada en los docs. Requiere leer el código fuente para derivar las estructuras. El modelo de **batcher** (que agrega posiciones de usuarios antes de aplicarlas al contrato) introduce un patrón UTxO más complejo de describir en Tx3.
-
-**Bloqueantes:**
-- Flujo de batcher no es trivial de modelar en templates simples
-- Sin blueprint generado; los tipos hay que inferirlos del código
-- V1 en alpha no recomendado; V2 es la versión a usar
+**Blockers:**
+- BUSL-1.1 license: verify terms before commercial integrations
+- Multiple interrelated validators complicate the templates
+- Decentralized oracles require additional referencing logic
 
 ---
 
-#### 🟠 Fluid Tokens (Aquarium) — Viabilidad media-baja
+#### 🟡 Bodega Market — Medium viability
 
-**Esfuerzo estimado: 5-8 días**
+**Estimated effort: 3-5 days**
 
-La lógica de FeeTanks tiene flujos atípicos: el contrato verifica ratios ADA/token dinámicos vía oráculos, y el flujo de "sponsorear fees" implica UTxOs de múltiples partes coordinadas. Sin blueprint público, habría que analizar transacciones reales on-chain para decodificar la estructura de datums. El developer portal con endpoints de API ayuda a entender los parámetros disponibles, pero no reemplaza el conocimiento del contrato.
+The V2 contracts are on GitHub. However, the internal technical documentation (datum types, redeemer structure) is not detailed in the docs. It requires reading the source code to derive the structures. The **batcher** model (which aggregates user positions before applying them to the contract) introduces a more complex UTxO pattern to describe in Tx3.
 
-**Bloqueantes:**
-- Sin blueprint ni código de contratos publicado explícitamente
-- Ratios dinámicos via oracle requieren referencing de UTxOs externos
-- El modelo de múltiples Tanks por transacción es complejo de parametrizar en Tx3
-
----
-
-#### 🔴 VyFi — Baja viabilidad
-
-**Esfuerzo estimado: 2-3 semanas o más**
-
-Es el caso de ingeniería inversa "pura". Sin contratos publicados, sin blueprint, sin SDK y sin documentación técnica, la única opción es analizar exhaustivamente transacciones históricas en exploradores, decodificar cada datum CBOR manualmente, e inferir la estructura completa del protocolo. Es factible en teoría, pero el costo en tiempo es desproporcionado respecto a los otros protocolos.
-
-**Alternativa recomendada:** Contactar directamente al equipo de VyFi para solicitar documentación técnica o acceso a los contratos antes de intentar la ingeniería inversa.
+**Blockers:**
+- The batcher flow is not trivial to model in simple templates
+- No generated blueprint; the types must be inferred from the code
+- V1 in alpha not recommended; V2 is the version to use
 
 ---
 
-### Tabla Resumen de Viabilidad Tx3
+#### 🟠 Fluid Tokens (Aquarium) — Medium-low viability
 
-| Protocolo | Viabilidad Tx3 | Fuente de Tipos | Esfuerzo estimado | Bloqueante principal |
+**Estimated effort: 5-8 days**
+
+The FeeTanks logic has atypical flows: the contract verifies dynamic ADA/token ratios via oracles, and the "fee sponsoring" flow involves UTxOs from multiple coordinated parties. Without a public blueprint, real on-chain transactions would have to be analyzed to decode the datum structure. The developer portal with API endpoints helps to understand the available parameters, but it does not replace knowledge of the contract.
+
+**Blockers:**
+- No blueprint or contract code published explicitly
+- Dynamic ratios via oracle require referencing external UTxOs
+- The multiple-Tanks-per-transaction model is complex to parameterize in Tx3
+
+---
+
+#### 🔴 VyFi — Low viability
+
+**Estimated effort: 2-3 weeks or more**
+
+This is the case of "pure" reverse engineering. Without published contracts, blueprint, SDK, or technical documentation, the only option is to exhaustively analyze historical transactions in explorers, manually decode each CBOR datum, and infer the complete structure of the protocol. It is feasible in theory, but the time cost is disproportionate relative to the other protocols.
+
+**Recommended alternative:** Contact the VyFi team directly to request technical documentation or access to the contracts before attempting reverse engineering.
+
+---
+
+### Tx3 Viability Summary Table
+
+| Protocol | Tx3 Viability | Source of Types | Estimated Effort | Main Blocker |
 |-----------|---------------|-----------------|-------------------|----------------------|
-| Strike Finance | 🟢 Alta | Blueprint Aiken (auto-generado) | 1-2 días | Ninguno relevante |
-| Indigo Protocol | 🟡 Media | Código PlutusTx en GitHub | 3-5 días | Licencia BUSL-1.1 |
-| Bodega Market | 🟡 Media | Código fuente V2 en GitHub | 3-5 días | Modelo de batcher |
-| Fluid Tokens | 🟠 Media-baja | On-chain CBOR + API endpoints | 5-8 días | Sin blueprint público |
-| VyFi | 🔴 Baja | On-chain CBOR únicamente | 2-3 semanas+ | Sin código fuente |
-| Moneta (USDM) | ⚪ N/A | Native token (no aplica) | Horas | Ninguno |
+| Strike Finance | 🟢 High | Aiken blueprint (auto-generated) | 1-2 days | None relevant |
+| Indigo Protocol | 🟡 Medium | PlutusTx code on GitHub | 3-5 days | BUSL-1.1 license |
+| Bodega Market | 🟡 Medium | V2 source code on GitHub | 3-5 days | Batcher model |
+| Fluid Tokens | 🟠 Medium-low | On-chain CBOR + API endpoints | 5-8 days | No public blueprint |
+| VyFi | 🔴 Low | On-chain CBOR only | 2-3 weeks+ | No source code |
+| Moneta (USDM) | ⚪ N/A | Native token (not applicable) | Hours | None |
 
-### Orden Recomendado de Implementación
+### Recommended Implementation Order
 
-1. **Strike Finance** — Para aprender el flujo de Tx3 con un caso limpio y bien documentado
-2. **Indigo Protocol** — Si la licencia BUSL-1.1 no es un bloqueante; código fuente claro
-3. **Bodega Market** — Código disponible; requiere entender el modelo de batcher
-4. **Fluid Tokens** — Útil para UX (fee sponsoring), pero requiere más análisis on-chain
-5. **VyFi** — Solo si los otros están completos o si el equipo provee documentación técnica
+1. **Strike Finance** — To learn the Tx3 flow with a clean, well-documented case
+2. **Indigo Protocol** — If the BUSL-1.1 license is not a blocker; clear source code
+3. **Bodega Market** — Code available; requires understanding the batcher model
+4. **Fluid Tokens** — Useful for UX (fee sponsoring), but requires more on-chain analysis
+5. **VyFi** — Only if the others are complete or if the team provides technical documentation
 
 ---
 
-*Investigación realizada en marzo 2026. Los proyectos DeFi de Cardano evolucionan rápidamente; verificar repositorios directamente para información actualizada.*
+*Research conducted in March 2026. Cardano DeFi projects evolve rapidly; verify repositories directly for up-to-date information.*

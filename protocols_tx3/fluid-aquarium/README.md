@@ -61,7 +61,7 @@ This transaction requires extensive off-chain data:
 
 ## tx3 Limitations
 
-Several tx3 language limitations affect this protocol. Three were resolved with unreleased fixes: field name shadowing ([tx3#316](https://github.com/tx3-lang/tx3/pull/316)), withdrawal redeemer generation ([tx3#317](https://github.com/tx3-lang/tx3/pull/317)), and typed reference datum access ([tx3#318](https://github.com/tx3-lang/tx3/pull/318)). Remaining limitations include custom types as params, list values as invoke args, and staking key extraction. For the full list, see [investigacion/tx3-limitations-aquarium.md](investigacion/tx3-limitations-aquarium.md).
+Several tx3 language limitations affect this protocol. Three were resolved with unreleased fixes: field name shadowing ([tx3#316](https://github.com/tx3-lang/tx3/pull/316)), withdrawal redeemer generation ([tx3#317](https://github.com/tx3-lang/tx3/pull/317)), and typed reference datum access ([tx3#318](https://github.com/tx3-lang/tx3/pull/318)). Remaining limitations include custom types as params, list values as invoke args, and staking key extraction. For the full list, see [investigation/tx3-limitations-aquarium.md](investigation/tx3-limitations-aquarium.md).
 
 ## Smart Contracts
 

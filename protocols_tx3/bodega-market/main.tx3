@@ -80,7 +80,7 @@ type OptionPkh {
 // Position type enum
 // IMPORTANT: deployed contract swaps Reward/Refund vs GitHub V2 source.
 // Confirmed on-chain: constructor 2 = RewardPos (batcher burns shares & pays reward).
-// See investigacion/tx-parameter-analysis.md for evidence.
+// See investigation/tx-parameter-analysis.md for evidence.
 type PositionType {
     BuyPos,
     RefundPos,

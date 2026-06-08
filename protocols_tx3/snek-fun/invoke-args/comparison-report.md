@@ -162,7 +162,7 @@ re-apply the template:
 
 ```python
 import hashlib
-tpl = bytes.fromhex(open('investigacion/scripts/token_mint.v3.template.cbor.hex').read())
+tpl = bytes.fromhex(open('investigation/scripts/token_mint.v3.template.cbor.hex').read())
 seed_tx  = bytes.fromhex('<your seed tx hash>')   # 32 bytes
 seed_idx = 0                                       # 0..23
 applied  = tpl[:475] + seed_tx + bytes([seed_idx]) + tpl[475+33:]

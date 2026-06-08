@@ -61,7 +61,7 @@ This is the most parameter-heavy transaction. The caller must precompute everyth
 | Parameter | Source |
 |---|---|
 | `seed_utxo`, `seed_tx`, `seed_idx` | A spendable UTxO from the creator's wallet — used to parameterise the token policy and as the input to the pool NFT mint redeemer. |
-| `token_policy`, `token_script` | Apply the on-disk token mint template (`investigacion/scripts/token_mint.v3.template.cbor.hex`) to the seed outref. The resulting blake2b-224 hash is `token_policy`; the applied CBOR is `token_script`. |
+| `token_policy`, `token_script` | Apply the on-disk token mint template (`investigation/scripts/token_mint.v3.template.cbor.hex`) to the seed outref. The resulting blake2b-224 hash is `token_policy`; the applied CBOR is `token_script`. |
 | `pool_nft_name` | 32-byte hash the pool NFT policy expects, derived from `(seed_outref_tx, seed_outref_idx)`. |
 | `metadata_nft_name`, `ticker`, `logo_cid`, `description`, `launch_type`, socials, `metadata_version` | Token metadata — passed as raw bytes (hex-encoded UTF-8 for text fields). |
 | `creator_pkh`, `creator_stake_key`, `pool_witness_pkh` | Wallet identity values, recorded in both the pool datum and metadata datum. |
@@ -74,7 +74,7 @@ Token policy application snippet (Python):
 
 ```python
 import hashlib
-tpl = bytes.fromhex(open('investigacion/scripts/token_mint.v3.template.cbor.hex').read())
+tpl = bytes.fromhex(open('investigation/scripts/token_mint.v3.template.cbor.hex').read())
 seed_tx  = bytes.fromhex('<your seed tx hash>')   # 32 bytes
 seed_idx = 0                                       # 0..23
 applied  = tpl[:475] + seed_tx + bytes([seed_idx]) + tpl[475+33:]
@@ -109,4 +109,4 @@ trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/launch_
 - Order validator: PlutusV2 (reference script at `e2ed9e953ebf98ca701fc93588d73cb9769f87b9d13712474f566a0743963e8b#0`)
 - Bonding curve & pool NFT policy: PlutusV2 (stable across all pools)
 - Per-launch token mint: PlutusV3 (parameterised, new policy id per launch)
-- Source: closed; on-chain shapes reverse-engineered — see [`investigacion/snek-fun-research.md`](investigacion/snek-fun-research.md).
+- Source: closed; on-chain shapes reverse-engineered — see [`investigation/snek-fun-research.md`](investigation/snek-fun-research.md).

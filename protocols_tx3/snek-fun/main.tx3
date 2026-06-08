@@ -11,7 +11,7 @@
 // because the token minting policy is parameterised per-launch (new policy id
 // for every token) — snek.fun's builder API resolves that off-chain.
 //
-// See investigacion/snek-fun-research.md for the on-chain datum/redeemer
+// See investigation/snek-fun-research.md for the on-chain datum/redeemer
 // shapes backing every type in this file.
 
 // --- Parties ---
@@ -108,7 +108,7 @@ type OrderAmount {
 
 // Datum at the order validator address. 10 fields, Constr(0).
 //
-// Field-by-field mapping (see investigacion/snek-fun-research.md):
+// Field-by-field mapping (see investigation/snek-fun-research.md):
 //   0 marker                — opaque version byte, always 0x01 on v1.
 //   1 owner_addr            — user's Cardano address (inline stake).
 //   2 input_asset           — what the user is paying with.

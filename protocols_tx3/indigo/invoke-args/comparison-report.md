@@ -93,7 +93,7 @@ On-chain deployment matches **VX** from `IndigoProtocol/indigo-upgrade-details-v
 
 ## TX3 Limitations
 
-See `investigacion/tx3-limitations-indigo.md` for full details.
+See `investigation/tx3-limitations-indigo.md` for full details.
 Updated 2026-04-15 after tx3c fixes [#316](https://github.com/tx3-lang/tx3/pull/316) (field name shadowing) and [#318](https://github.com/tx3-lang/tx3/pull/318) (typed reference datums).
 
 **Bugs (workaround applied):**

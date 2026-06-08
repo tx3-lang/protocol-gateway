@@ -14,8 +14,8 @@ Analyze the on-chain protocol and implement it as a tx3 protocol.
 
 1. If the user provided a protocol name, check if `protocols_tx3/<name>/` already exists with a scaffold (main.tx3, trix.toml). If so, read the existing files to understand what's already been done.
 2. If a contract address or policy ID was provided, use it as the starting point for on-chain research.
-3. If no address was provided, ask the user for one, or look for clues in the existing scaffold (addresses in comments, .env files, investigacion/ folder).
-4. Check if there's an `investigacion/` folder with prior research — build on it rather than starting from scratch.
+3. If no address was provided, ask the user for one, or look for clues in the existing scaffold (addresses in comments, .env files, investigation/ folder).
+4. Check if there's an `investigation/` folder with prior research — build on it rather than starting from scratch.
 
 ## Phase 1: On-Chain Research
 
@@ -73,7 +73,7 @@ For each inline datum found, decode the CBOR and identify:
 - Semantic meaning of each field (by cross-referencing with GitHub source if available)
 - Any discrepancies between GitHub source and on-chain reality
 
-Document findings in `protocols_tx3/$0/investigacion/`.
+Document findings in `protocols_tx3/$0/investigation/`.
 
 ### 1.4 Classify Values
 
@@ -91,7 +91,7 @@ Separate protocol configuration into layers:
 ### 2.1 Project Setup
 
 ```bash
-mkdir -p protocols_tx3/$0/{invoke-args,investigacion}
+mkdir -p protocols_tx3/$0/{invoke-args,investigation}
 ```
 
 Create `trix.toml`:
@@ -124,7 +124,7 @@ Known tx3 limitations to account for:
 - **Nested metadata maps fail**: use simple strings for metadata values
 - **Bytes in enum datum field**: wraps as ByteString, not raw Plutus Data
 
-See `protocols_tx3/bodega-market/investigacion/tx3-custom-types-limitation.md` for full details.
+See `protocols_tx3/bodega-market/investigation/tx3-custom-types-limitation.md` for full details.
 
 ### 2.3 Create .env.mainnet Profile
 
