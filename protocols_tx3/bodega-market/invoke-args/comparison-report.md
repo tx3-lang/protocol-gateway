@@ -141,10 +141,10 @@ debugging:
 | stock local Dolos ~0.22 | ✅ | ❌ `target type not supported: Custom("CandidateIdx")` |
 | updated local Dolos (≥0.23) | ✅ | ✅ |
 
-The trix 0.26 compiler runs ahead of the deployed resolvers. **Before this ships to
-`rpc.tx3.land`, its TRP/resolver must be on tx3 ≥0.23** — the demeter `trp-m1` endpoint
-used by the built-in `mainnet` profile is too old. (This was also the trail that exposed
-the inline-fee bug: getting the resolver new enough to even run it.)
+The trix 0.26 compiler runs ahead of the deployed resolvers. **This needs the TRP/resolver
+on tx3 ≥0.23** — the demeter `trp-m1` endpoint used by the built-in `mainnet` profile was
+too old at the time (the mainnet TRP is ≥0.23 as of 2026-06-23). (This was also the trail
+that exposed the inline-fee bug: getting the resolver new enough to even run it.)
 
 ### Still to confirm (human step)
 

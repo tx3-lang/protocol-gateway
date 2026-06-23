@@ -27,8 +27,8 @@ This tx3 implements the **user-facing flow only**: placing orders, cancelling or
 - **Order submissions are script-free:** `place_buy_order` and `place_sell_order` are plain payments to the order validator address with an inline datum — no validator runs. The script only fires when the batcher fills (or the user cancels).
 - **Per-user order address:** `OrderScript` is `(payment = order validator script, stake = user's own stake key)`. Because the stake side changes per user it cannot live in the env — callers must pass the concrete bech32 per call as the `orderscript` party.
 - **Per-launch token policy:** `launch_token` requires a parameterised minting policy (new policy id for every token). The caller must apply the seed outref to the on-disk template off-chain and pass both the resulting `token_policy` (script hash) and `token_script` (CBOR) per call.
-- **Flat address structure:** `OrderDatum.owner_addr` is modelled as a chain of single-field structs (`CardanoAddress → OrderPayment + OrderStakeJust → OrderStakeCred → OrderPayment`) to reproduce Cardano's nested `Constr(0, ...)` address layout while sidestepping the tx3 resolver's current issues with deeply-nested enum variants.
-- **Pre-summed ADA amounts:** tx3 has no `*` or `/`, so every aggregate (`total_escrow_ada`, `pool_seed_ada`, `creator_min_ada`, etc.) must be pre-computed by the caller. The launch tx alone takes 6 separate pre-summed figures.
+- **Address enums (tx3 0.23):** `OrderDatum.owner_addr` is modelled with proper Cardano-shaped enums — `PlutusAddress(Credential, OptionalStake)`, `Credential::PubKey/Script`, `StakingCred::Hash`, `OptionalStake::Some/None` — built inline by the shared `owner_address(pkh, stake_key)` fn. (Earlier versions used a chain of single-field structs to dodge an arg-encoding bug; self-describing args (#343) fixed it.)
+- **Derived amounts (tx3 0.23):** the verifiable escrow/supply figures are now computed on-chain via `+`/`-` (#339/#340): buy escrow = `ada_input + executor_fee + min_order_out_ada`, sell escrow = `executor_fee + min_order_out_ada`, curve supply = `token_emission - initial_buy_tokens`. Independent min-ADA/fee/curve figures (`pool_seed_ada`, `launch_fee_ada`, `ada_cap_thresh_for_pool`, …) are not derivable on-chain and stay caller params.
 - **Direction marker fixed at 1:** `OrderAmount.direction` is hardcoded to `1` (exact-input variant). The `direction=0` "buy-with-output" mode is not implemented.
 - **Pool spends not implemented:** Buy/sell fills against the bonding curve are done by the snek.fun batcher and require the permitted-executor signature + dynamic input/output indices — they cannot be modelled in tx3 today.
 
@@ -40,15 +40,15 @@ This tx3 implements the **user-facing flow only**: placing orders, cancelling or
 - `user_pkh`, `user_stake_key` — raw 28-byte hashes from the user's wallet, also embedded in the datum's nested owner address.
 - `token_policy`, `token_name` — the token information the user is buying (queried from snek.fun for that pool).
 - `ada_input` — lovelace the batcher may spend on tokens (caller chooses based on slippage tolerance).
-- `total_escrow_ada` — `ada_input + executor_fee + min_order_out_ada`. Pre-summed.
 - `deadline_ms` — unix millis after which the batcher rejects the order.
-- `empty_bytes` — placeholder `""` for the ADA asset id (`policy = ""`, `name = ""`).
+
+The escrow total (`ada_input + executor_fee + min_order_out_ada`) and the ADA asset id (`""`/`""`) are now computed on-chain, so callers no longer pass `total_escrow_ada` or an `empty_bytes` placeholder.
 
 ### `place_sell_order`
 
 Same as `place_buy_order` plus:
 - `token_amount` — token quantity being sold.
-- The escrow ADA is fixed (`sell_escrow_ada` from env, observed = 2 600 000 lovelace) so callers don't pass it.
+- The escrow ADA (`executor_fee + min_order_out_ada` = 2 600 000 lovelace) is derived on-chain, so callers don't pass it.
 
 ### `cancel_order`
 
@@ -63,12 +63,23 @@ This is the most parameter-heavy transaction. The caller must precompute everyth
 | `seed_utxo`, `seed_tx`, `seed_idx` | A spendable UTxO from the creator's wallet — used to parameterise the token policy and as the input to the pool NFT mint redeemer. |
 | `token_policy`, `token_script` | Apply the on-disk token mint template (`investigation/scripts/token_mint.v3.template.cbor.hex`) to the seed outref. The resulting blake2b-224 hash is `token_policy`; the applied CBOR is `token_script`. |
 | `pool_nft_name` | 32-byte hash the pool NFT policy expects, derived from `(seed_outref_tx, seed_outref_idx)`. |
-| `metadata_nft_name`, `ticker`, `logo_cid`, `description`, `launch_type`, socials, `metadata_version` | Token metadata — passed as raw bytes (hex-encoded UTF-8 for text fields). |
-| `creator_pkh`, `creator_stake_key`, `pool_witness_pkh` | Wallet identity values, recorded in both the pool datum and metadata datum. |
+| `metadata_nft_name` | Asset name of the metadata NFT (raw bytes). |
+| `meta: LaunchMetadata` | Metadata record (#343): `{ ticker, logo_cid, description, launch_type, socials: { twitter, discord, telegram, website }, version }` — bytes fields hex-encoded. Passed as a self-describing struct arg. |
+| `author: PoolAuthor` | Creator address parts `{ pkh, skh }`, recorded in the metadata datum. Self-describing struct arg. |
+| `pool_witness_pkh` | Pool authority PKH, recorded in the pool datum. |
 | `ada_cap_thresh_for_pool` | Per-pool graduation threshold (close to `18_188_400_000` ± per-launch jitter). |
 | `launch_fee_ada` | Fee paid to the snek.fun collector (observed = 1 825 000). |
 | `metadata_min_ada`, `creator_min_ada`, `pool_seed_ada` | Min-ADA values for the metadata, creator, and pool outputs. |
-| `initial_buy_tokens`, `curve_tokens_remaining` | Split of the 1 000 000 000 supply between the creator's "dev buy" and the bonding curve seed. Must sum to `token_emission`. |
+| `initial_buy_tokens` | The creator's "dev buy". The bonding-curve seed (`token_emission - initial_buy_tokens`) is derived on-chain, so `curve_tokens_remaining` is no longer a param. |
+
+The `meta` and `author` records are passed in the tagged self-describing form, e.g.:
+
+```json
+"author": { "struct": { "constructor": 0, "fields": [
+  { "bytes": "<creator_pkh>" }, { "bytes": "<creator_stake_key>" } ] } }
+```
+
+See [`invoke-args/launch_token.json`](invoke-args/launch_token.json) for the full `meta` example.
 
 Token policy application snippet (Python):
 
@@ -84,10 +95,13 @@ policy   = hashlib.blake2b(b'\x03' + applied, digest_size=28).hexdigest()
 
 ## tx3 Limitations
 
-- **No `*` / `/` operators:** Every aggregate amount (escrow totals, pool seed split, etc.) must be pre-summed by the caller.
-- **No deeply-nested enum variants:** The owner address inside `OrderDatum` is modelled as a chain of single-field structs instead of the natural `Address(Credential, Maybe StakingCredential)` shape, because constructing nested variants currently trips the tx3 resolver (`invalid hex: Invalid character 'r' at position 3`).
+> Updated for tx3 0.23: the former "no `*`/`/`" and "no nested enum variants" limitations are **resolved**
+> (see `protocols_tx3/TX3-0.23-UPGRADE.md`). What remains blocked:
+
+- **Exponential bonding curve:** `price = a·exp(b·sold)` needs `exp`/fixed-point math, which tx3 lacks. The verifiable linear/subtractive splits are inlined, but `ada_input` / `initial_buy_tokens` (the curve-derived figures) stay caller-computed off-chain.
 - **Per-launch parameterised script:** `token_script` is passed in as raw CBOR via `cardano::plutus_witness` because the policy is parameterised per launch (new policy id every time) — tx3 cannot apply parameters to a script template.
 - **Pool spend not modellable:** Filling an order requires the permitted-executor signature plus dynamic input/output ordering against the pool UTxO; this can't be expressed in tx3 today and is left to the snek.fun batcher.
+- **Resolver version:** the inlined arithmetic needs a resolver ≥0.22 and the `meta`/`author` self-describing params need ≥0.23. The mainnet TRP is ≥0.23 — all four txs resolve live (verified 2026-06-23: `place_buy_order` datum is byte-identical to the on-chain Poppy order; `launch_token`'s `PoolDatum` matches the real Poppy launch in 7/9 fields).
 
 ## CBOR Verification
 
