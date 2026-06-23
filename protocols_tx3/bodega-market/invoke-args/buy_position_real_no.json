@@ -1,0 +1,14 @@
+{
+  "_comment": "Reproduces real on-chain NO buy_position tx f57e74aa7158b82a549e800a4a40020a74df5f04ce2678291ba683bb3c959170 (market 5637_SPCX_CLOSES_ABOV). Compare the resulting position output (datum + 155735719 lovelace) against that tx's out[0]. NOTE: 'user' is the real buyer's wallet; if it lacks funds on your Dolos, swap it for a funded wallet — the datum's user_pkh/stake come from the params below, not the funding wallet.",
+  "user": "addr1qyqjdy0m36cgvwh2xxgsq8kkgkx2n48jwms5p3v0f34cn7r4dyhhxnckkqah6xlhnzhcdfggk6qdclhd4p9he02v9azqcx6lvz",
+  "positionscript": "addr1wxkzkc6uc2987x7qnljsnpuj9ndm566gqsd2p2ww0qn2tfsw5msv9",
+  "user_pkh": "012691fb8eb0863aea3191001ed6458ca9d4f276e140c58f4c6b89f8",
+  "user_stake_key": "75692f734f16b03b7d1bf798af86a508b680dc7eeda84b7cbd4c2f44",
+  "project_info_ref": "1ac43064d354dc775dea44c05b8d75be76b3823b27715c8f05530b68d61328c5#0",
+  "candidate": { "struct": { "constructor": 1, "fields": [] } },
+  "buy_amount": 339,
+  "batcher_fee_amount": 700000,
+  "admin_fee_percent": 200,
+  "unit_price": 434070,
+  "total_lovelace": 155735719
+}

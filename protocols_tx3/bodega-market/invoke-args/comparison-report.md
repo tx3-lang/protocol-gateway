@@ -1,218 +1,187 @@
 # Bodega Market: CBOR Comparison Report
 
-Generated 2026-04-14. Compares transactions built by `trix invoke --profile mainnet --skip-submit` against real on-chain transactions. Updated to use `datum_is` reference datum access (tx3c v0.17.0) and market CC01_ADA_REACHES_060_.
+Updated 2026-06-22 for the **tx3 0.23 upgrade** (toolchain: trix 0.26.2, tii spec
+`v1beta0`). Compares transactions built by `trix invoke --profile mainnet --skip-submit`
+against the previously verified references (market CC01_ADA_REACHES_060_).
 
-## Key Changes from Previous Report (2026-03-31)
+## What changed in this revision (tx3 0.23)
 
-1. **`project_outref_tx` + `project_outref_idx` replaced by `project_info_ref`** — The ProjectInfoDatum UTxO is now added as a typed reference input. `outref_id` is read from the datum via `datum_is` instead of being passed as two separate params.
-2. **Reference input in CBOR field 18** — All 6 user txs now include the ProjectInfoDatum UTxO as a reference input (`0f01` / field 18 in the CBOR body).
-3. **Test market changed** — Using CC01_ADA_REACHES_060_ (deadline 2026-12-30), an active market with long expiry.
+**One** source-level improvement landed; the second was attempted and **reverted** after a
+real-tx check (see "Inline fee — reverted" below).
 
-## Test Market: CC01_ADA_REACHES_060_
+1. **6 `_yes`/`_no` txs collapsed into 3** ✅ — taking `candidate: CandidateIdx` as an enum
+   parameter (self-describing args, PR #343):
+   - `buy_position_yes` + `buy_position_no`   → **`buy_position`**
+   - `submit_reward_yes` + `submit_reward_no` → **`submit_reward`**
+   - `sell_position_yes` + `sell_position_no` → **`sell_position`**
+
+   `pos_candidate` is now driven by the `candidate` param instead of a hardcoded
+   `CandidateIdx::Candidate0/1` literal. `Candidate0` → `Constr(0)` (YES),
+   `Candidate1` → `Constr(1)` (NO) — identical to the old per-variant literals. Confirmed
+   against a real on-chain NO buy (tx `f57e74aa…`, market 5637_SPCX): `candidate=Constr(1)`.
+
+2. **`total_lovelace` inline — INVESTIGATED, DISCARDED.** ❌ The **real** deployed formula
+   (LMSR contract, reverse-engineered + verified vs on-chain — see
+   `tx3-limitations-bodega-market.md §1`) is:
+
+   ```
+   total = LMSR_cost + floor(LMSR_cost*(pi_admin% + pos_admin%)/10000) + batcher + envelope
+   ```
+
+   Verified exact on tx `f57e74aa…` (5637_SPCX NO):
+   `147 149 730 + 5 885 989 + 700 000 + 2 000 000 = 155 735 719` ✓ (both admin% = 200 → 4%).
+   The old `main.tx3` polynomial put the admin fee on `buy_amount` (= 6 780 000) instead of on
+   `LMSR_cost` (= 5 885 989) → that was the +894 011 error. Not inlinable because **(a)**
+   `LMSR_cost ≠ buy_amount*unit_price` — `unit_price` is a rounded average; the real cost needs
+   ln/exp off-chain (off by up to ~100k lovelace in other trades), and **(b)** even passing
+   `LMSR_cost` as a param saves no compute, needs `pi_admin%` as an extra param (unreadable
+   from the ref datum in amounts, quirk #13), and the closed-source rate combo is only
+   reverse-engineered. So `total_lovelace` + `unit_price` **stay caller params**.
+
+### Metadata note (behavior change)
+
+The old txs carried an **inconsistent** CIP-20 `674` message: present on the `_no`
+variants and `submit_reward_yes`, absent on `buy_position_yes`/`sell_position_yes`.
+A single collapsed tx cannot vary metadata per candidate (no `if`/`when` in tx3), and
+these strings are cosmetic labels that do **not** appear in real on-chain Bodega txs.
+**The `674` metadata is now dropped from all three txs.** Consequence:
+`buy_position`/`sell_position` with `Candidate0` are byte-identical to the old `_yes`
+references; `submit_reward` (both candidates) loses its metadata block.
+
+## Enum argument format (important)
+
+`CandidateIdx` is passed in the **tagged self-describing form** the resolver's
+`from_json` expects (`tx3-resolver/src/interop.rs` — bare values are only accepted for
+scalars; aggregates must arrive tagged):
+
+```json
+"candidate": { "struct": { "constructor": 0, "fields": [] } }   // Candidate0 = YES
+"candidate": { "struct": { "constructor": 1, "fields": [] } }   // Candidate1 = NO
+```
+
+> The `{ "Candidate0": {} }` shape that appears under `components.schemas` in the TII is
+> the JSON-Schema *documentation* form, **not** the resolver wire form. Passing it bare
+> would fall through to `coerce_bare`, which rejects the `Custom` type.
+
+## Transaction params — before vs after
+
+| tx | before (params) | after (params) |
+|----|------------------|----------------|
+| `buy_position`   | user_pkh, user_stake_key, project_info_ref, buy_amount, batcher_fee_amount, admin_fee_percent, unit_price, total_lovelace | user_pkh, user_stake_key, project_info_ref, **candidate**, buy_amount, batcher_fee_amount, admin_fee_percent, unit_price, total_lovelace |
+| `submit_reward`  | user_pkh, user_stake_key, project_info_ref, share_policy_id, candidate_name, envelope_amount, share_amount, batcher_fee_amount | user_pkh, user_stake_key, project_info_ref, **candidate**, share_policy_id, candidate_name, envelope_amount, share_amount, batcher_fee_amount |
+| `sell_position`  | user_pkh, user_stake_key, project_info_ref, envelope_amount, share_amount, batcher_fee_amount, admin_fee_percent, unit_price | user_pkh, user_stake_key, project_info_ref, **candidate**, envelope_amount, share_amount, batcher_fee_amount, admin_fee_percent, unit_price |
+
+`submit_reward` keeps **both** `candidate` (the datum index) and `candidate_name` (the
+share-token asset name, e.g. `B_CC01_YES` = `425f434330315f594553`). The token name
+cannot be derived from the enum without a conditional, and `ProjectInfoDatum`'s
+`candidate_*_name` fields can't be used in asset expressions (quirk #13, still open).
+
+## Verification
+
+`trix invoke` requires an interactive TTY (the CShell wallet), so the final byte-for-byte
+CBOR diff must be run by a human (see "Reproduce" below). The structural verification
+done here is **deterministic and toolchain-checked** via the compiled TIR
+(`trix inspect tir --tx <name> --pretty`), which fixes the datum constructors, field
+order, param wiring, amount arithmetic, and metadata — everything that determines the
+CBOR except the resolved leaf values.
+
+**TIR diff of each new tx against its old `_yes` baseline — only the intended deltas:**
+
+| tx | TIR delta vs old `_yes` |
+|----|--------------------------|
+| `buy_position`  | `pos_candidate` `Struct{constructor:0}` → `EvalParam[candidate, Custom:CandidateIdx]` (only — `total_lovelace` stays a param) |
+| `sell_position` | `pos_candidate` `Struct{constructor:0}` → `EvalParam[candidate, Custom:CandidateIdx]` (only) |
+| `submit_reward` | metadata `[674:"…Yes"]` → `[]`; `pos_candidate` `Struct{constructor:0}` → `EvalParam[candidate, Custom:CandidateIdx]` |
+
+### On-chain resolve — what's confirmed (updated local Dolos, resolver ≥0.23)
+
+`buy_position` (Candidate0/YES, CC01) resolved end-to-end; the position datum decodes with
+the right structure and `pos_candidate = Constr(0)` from the
+`{"struct":{"constructor":0,"fields":[]}}` arg — **the enum collapse (task 1) works.** The
+output amount equals the `total_lovelace` param (now caller-supplied, not inlined).
+
+Cross-checked against the **real on-chain NO buy** (tx `f57e74aa…`, 5637_SPCX). Decoded
+position datum, field by field:
+
+| field | real f57e74aa | our `buy_position(Candidate1, …)` |
+|-------|---------------|-----------------------------------|
+| outref_id | `6d61b61b…#3` | `6d61b61b…#3` (read from ProjectInfoDatum `1ac43064…#0`) ✓ |
+| user_pkh / stake | `012691fb…` / `SomePkh(75692f73…)` | same (params) ✓ |
+| pos_type | Constr(0) BuyPos | Constr(0) ✓ |
+| pos_amount / batcher / admin% / unit_price | 339 / 700000 / 200 / 434070 | same (params) ✓ |
+| **pos_candidate** | **Constr(1)** = NO | **Constr(1)** (from `{"struct":{"constructor":1,"fields":[]}}`) ✓ |
+| output amount | 155 735 719 | = `total_lovelace` param 155 735 719 ✓ |
+
+→ fixture `buy_position_real_no.json` reproduces it. **Values & structure match.**
+
+### Datum is value-equivalent but NOT byte-identical (encoding convention)
+
+tx3's resolver serializes Plutus `Constr` fields as **definite-length** CBOR arrays; the
+on-chain Aiken contract uses **indefinite-length** (`9f…ff`):
+
+```
+our tx3 (CC01 resolve):  outer d87989(def 9)  outref d87982(def 2)  SomePkh d87981(def 1)  empty d87980
+on-chain (f57e74aa):     outer d8799f…ff(indef)  outref d8799f…ff      SomePkh d8799f…ff      empty d87980
+```
+
+Same Plutus data, same decoded values → the validator/batcher accepts it identically, but
+the raw datum bytes (and any datum hash) differ. This is a tx3-resolver convention, **not**
+introduced by this change — the original protocol emitted the same definite-length form.
+So "byte-for-byte identical to the on-chain datum" is **not achievable via tx3** for these
+Aiken datums; value-level equivalence is.
+
+### Resolver-version requirement (critical for deployment)
+
+The shipped change (enum param, #343) needs a **resolver on tx3 ≥0.23**. Observed while
+debugging:
+
+| Resolver | inline `*`/`/` (0.22) | enum param `#343` (0.23) |
+|----------|------------------------|---------------------------|
+| `--profile mainnet` TRP (`trp-m1.demeter.run`) | ❌ `unknown variant Mul` (it is <0.22) | ❌ |
+| stock local Dolos ~0.22 | ✅ | ❌ `target type not supported: Custom("CandidateIdx")` |
+| updated local Dolos (≥0.23) | ✅ | ✅ |
+
+The trix 0.26 compiler runs ahead of the deployed resolvers. **Before this ships to
+`rpc.tx3.land`, its TRP/resolver must be on tx3 ≥0.23** — the demeter `trp-m1` endpoint
+used by the built-in `mainnet` profile is too old. (This was also the trail that exposed
+the inline-fee bug: getting the resolver new enough to even run it.)
+
+### Still to confirm (human step)
+
+- **Deployment:** bodega is the first protocol in `protocols/` to ship a
+  `components.schemas` section (the `CandidateIdx` enum). Confirm the API server
+  (tx3-sdk 0.9.2) serves the `candidate` param / OpenRPC correctly after the `.tii` swap,
+  and that production resolves against a tx3 ≥0.23 backend.
+
+## Test market: CC01_ADA_REACHES_060_
 
 | Config | Value |
 |--------|-------|
 | ProjectInfo UTxO | `fc914f41696c345b1a782e53ef6117c90aee1d7561d4442574a1380d40df71c3#0` |
 | PositionScript | `addr1w9jw5wpd06f5v53sltrvxpkymraugehamf86r5z3vyl9jygxlhyt4` |
-| Outref (from datum) | `12d6d37a4a3b53cf3bbbf0989133e0022eee3127d797f8610615fc6935bd6bbc#3` |
 | share_policy_id | `6e8181d047370418d7ef48f013ffa1bd986388e84cd9c6eec676d98e` |
 | admin_fee_percent | 200 |
 | envelope_amount | 2,000,000 |
 | Candidate YES | `B_CC01_YES` (`425f434330315f594553`) |
 | Candidate NO | `B_CC01_NO` (`425f434330315f4e4f`) |
-| Current yes_price | 536,556 |
-| Current no_price | 463,443 |
-| Deadline | 1798610580000 (2026-12-30) |
 
-## Generated Transactions
-
-| Operation | Tx Hash (unsigned) | Args File | Status |
-|-----------|--------------------|-----------|--------|
-| buy_position_yes | `7e1ed097...` | `buy_position_yes.json` | CBOR OK |
-| buy_position_no | — | `buy_position_no.json` | CBOR OK |
-| submit_reward_yes | `37bff8d2...` | `submit_reward_yes.json` | CBOR OK |
-| submit_reward_no | `35d2b991...` | `submit_reward_no.json` | CBOR OK |
-| sell_position_yes | `88a737cc...` | `sell_position_yes.json` | CBOR OK |
-| sell_position_no | `ce90f82d...` | `sell_position_no.json` | CBOR OK |
-
-All 6 user-facing transactions generate valid CBOR with the CC01 market.
-
-## Test Wallets
-
-| Role | Address | Used in |
-|------|---------|---------|
-| User (buy/sell) | `addr1qxedpq6fw09r7f4wu8cp9sd57q7vphxedf0zn8rzh6uxydluy3ncf0haddh9k75y4s07kz4f7t2c0jr8fg8new2s7p3ssvju2w` | buy_position_yes/no, sell_position_yes/no, submit_reward_no |
-| User (reward YES) | `addr1q9nsd0stv3llw42nrgz9qcm8er4nmwugdtd4rre8pdlekk8pclsjx2fsxl5as44xdxc5m86zj7p0fw2k950xxdz68n9qflm5ny` | submit_reward_yes (holds 358 B_CC01_YES) |
-
-Note: submit_reward_yes uses a different wallet because the primary test wallet does not hold B_CC01_YES tokens. The resolver requires the user's wallet to contain the share tokens being submitted.
-
-## Structural Analysis
-
-### Reference Input (new in this version)
-
-All 6 txs include the ProjectInfoDatum UTxO as a reference input in CBOR field 18:
-
-```
-0f0112d9010281825820fc914f41696c345b1a782e53ef6117c90aee1d7561d4442574a1380d40df71c300
-```
-
-This is `fc914f41...#0` — the CC01 ProjectInfoDatum. The resolver fetches this UTxO, decodes the datum, and extracts `outref_id` (field 0) for use in the output PositionDatum.
-
-### buy_position_yes — Datum verification
-
-Decoded from CBOR output `7e1ed097...`:
-
-| Datum Field | Value | Source |
-|-------------|-------|--------|
-| outref_id | `12d6d37a...#3` | **Read from ProjectInfoDatum reference** |
-| pos_user_pkh | `b2d08349...` | Param |
-| pos_user_stake_key | SomePkh(`fc2467...`) | Param |
-| pos_type | Constr(0) = BuyPos | Hardcoded |
-| pos_amount | 10 | Param |
-| pos_batcher_fee | 700,000 | Param |
-| pos_admin_fee_percent | 200 | Param |
-| pos_unit_price | 536,556 | Param |
-| pos_candidate | Constr(0) = Candidate0 (YES) | Hardcoded (_yes variant) |
-
-The `outref_id` is correctly resolved from the ProjectInfoDatum reference input, not from caller params.
-
-### submit_reward_yes — Datum verification
-
-Decoded from CBOR output `37bff8d2...`:
-
-| Datum Field | Value | Source |
-|-------------|-------|--------|
-| outref_id | `12d6d37a...#3` | **Read from ProjectInfoDatum reference** |
-| pos_user_pkh | `6706be0b...` | Param (different wallet) |
-| pos_user_stake_key | SomePkh(`e1c7e1...`) | Param |
-| pos_type | Constr(2) = RewardPos | Hardcoded |
-| pos_amount | 10 | Param |
-| pos_batcher_fee | 700,000 | Param |
-| pos_admin_fee_percent | 0 | Hardcoded |
-| pos_unit_price | 0 | Hardcoded |
-| pos_candidate | Constr(0) = Candidate0 (YES) | Hardcoded (_yes variant) |
-
-Output includes 10 B_CC01_YES share tokens sent to the PositionScript alongside 2,700,000 lovelace (envelope + batcher_fee).
-
-### sell_position_yes — Datum verification
-
-Decoded from CBOR output `88a737cc...`:
-
-| Datum Field | Value | Source |
-|-------------|-------|--------|
-| outref_id | `12d6d37a...#3` | **Read from ProjectInfoDatum reference** |
-| pos_user_pkh | `b2d08349...` | Param |
-| pos_user_stake_key | SomePkh(`fc2467...`) | Param |
-| pos_type | Constr(1) = RefundPos | Hardcoded |
-| pos_amount | 10 | Param |
-| pos_batcher_fee | 700,000 | Param |
-| pos_admin_fee_percent | 200 | Param |
-| pos_unit_price | 536,556 | Param |
-| pos_candidate | Constr(0) = Candidate0 (YES) | Hardcoded (_yes variant) |
-
-ADA-only output (no share tokens) — 2,700,000 lovelace (envelope + batcher_fee).
-
-## Parameter Comparison: Before vs After
-
-### buy_position_yes/no
-
-| Before (9 params) | After (8 params) | Change |
-|--------------------|-------------------|--------|
-| user_pkh | user_pkh | — |
-| user_stake_key | user_stake_key | — |
-| project_outref_tx | — | Removed (read from ref datum) |
-| project_outref_idx | — | Removed (read from ref datum) |
-| — | project_info_ref | New (UtxoRef to ProjectInfoDatum) |
-| buy_amount | buy_amount | — |
-| batcher_fee_amount | batcher_fee_amount | — |
-| admin_fee_percent | admin_fee_percent | — |
-| unit_price | unit_price | — |
-| total_lovelace | total_lovelace | — |
-
-### submit_reward_yes/no
-
-| Before (9 params) | After (8 params) | Change |
-|--------------------|-------------------|--------|
-| user_pkh | user_pkh | — |
-| user_stake_key | user_stake_key | — |
-| share_policy_id | share_policy_id | — |
-| project_outref_tx | — | Removed (read from ref datum) |
-| project_outref_idx | — | Removed (read from ref datum) |
-| — | project_info_ref | New (UtxoRef to ProjectInfoDatum) |
-| envelope_amount | envelope_amount | — |
-| candidate_name | candidate_name | — |
-| share_amount | share_amount | — |
-| batcher_fee_amount | batcher_fee_amount | — |
-
-### sell_position_yes/no
-
-| Before (9 params) | After (8 params) | Change |
-|--------------------|-------------------|--------|
-| user_pkh | user_pkh | — |
-| user_stake_key | user_stake_key | — |
-| project_outref_tx | — | Removed (read from ref datum) |
-| project_outref_idx | — | Removed (read from ref datum) |
-| — | project_info_ref | New (UtxoRef to ProjectInfoDatum) |
-| envelope_amount | envelope_amount | — |
-| share_amount | share_amount | — |
-| batcher_fee_amount | batcher_fee_amount | — |
-| admin_fee_percent | admin_fee_percent | — |
-| unit_price | unit_price | — |
-
-## On-Chain Findings (1B60_CRUDE_OIL_CLOSES analysis)
-
-During this update, 7 real user buy_position txs from market 1B60 were decoded and analyzed:
-
-1. **`admin_fee_percent` varies per position** — Values of 200 (2%) and 10 (0.1%) observed in the same market. ProjectInfoDatum says 200. Likely a BODEGA holder discount. Must remain a caller param.
-
-2. **`unit_price` is LMSR-computed, not spot price** — Differs from PredictionDatum `yes_price`/`no_price` by up to 56,564 lovelace. Depends on trade size. Must remain a caller param.
-
-3. **`batcher_fee_amount` is constant (700,000)** — Consistent across all 7 txs analyzed. Not stored in any on-chain datum. Must remain a caller param.
-
-## Architecture
-
-```
-Param source          | Values
-----------------------|---------------------------------------------------
-Env (instance-level)  | NFT token names, BODEGA details, script refs,
-                      | batcher_policy_id, psettings NFT
-JSON args (per-market)| PositionScript address, project_info_ref,
-                      | share_policy_id, envelope_amount, candidate_name
-JSON args (per-call)  | User address/pkh/stake_key, amounts, prices,
-                      | admin_fee_percent, batcher_fee_amount
-Reference datum       | outref_id (read from ProjectInfoDatum at resolve)
-```
-
-## How to Reproduce
+## Reproduce (requires a TTY + a tx3 ≥0.23 resolver, e.g. an updated local Dolos)
 
 ```bash
 cd protocols_tx3/bodega-market
+trix check && trix build      # then: cp .tx3/tii/.../main.tii ../../protocols/bodega_market.tii
 
-# buy_position_yes
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/buy_position_yes.json
-# select: buy_position_yes
+# Use a ≥0.23 resolver. The built-in `mainnet` TRP (trp-m1.demeter.run) is too old;
+# point at an updated local Dolos instead (its profile must use mainnet network params).
 
-# buy_position_no
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/buy_position_no.json
-# select: buy_position_no
+# CC01, YES (Candidate0)
+trix invoke --skip-submit --args-json-path invoke-args/buy_position.json
+trix invoke --skip-submit --args-json-path invoke-args/submit_reward.json
+trix invoke --skip-submit --args-json-path invoke-args/sell_position.json
 
-# submit_reward_yes
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/submit_reward_yes.json
-# select: submit_reward_yes
+# Real on-chain NO buy (market 5637_SPCX) — compare position out vs tx f57e74aa…
+trix invoke --skip-submit --args-json-path invoke-args/buy_position_real_no.json
 
-# submit_reward_no
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/submit_reward_no.json
-# select: submit_reward_no
-
-# sell_position_yes
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/sell_position_yes.json
-# select: sell_position_yes
-
-# sell_position_no
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/sell_position_no.json
-# select: sell_position_no
-
-# create_market (unchanged from previous report)
-trix invoke --profile mainnet --skip-submit --args-json-path invoke-args/create_market.json
-# select: create_market
+# create_market (unchanged)
+trix invoke --skip-submit --args-json-path invoke-args/create_market.json
 ```
