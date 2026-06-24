@@ -1,6 +1,19 @@
 # Indigo — V3 Migration: Next Steps
 
-> **Status (2026-06-16):** Indigo redeployed its contracts on-chain (**"V3"**) and migrated to
+> **✅ DONE (2026-06-24).** The V3 re-point + re-verify described below was carried out. Results,
+> per-flow verdicts, and the new tx3 blockers discovered are in **`investigation/v3-findings.md`** and
+> **`invoke-args/comparison-report.md`**. Summary:
+> - **Working + live-resolved (5):** `create_staking`, `adjust_staking`, `unstake`, `adjust_cdp_mint`,
+>   `adjust_cdp_burn`. Env fully re-pointed to V3.
+> - **Blocked (3 SP):** `create_sp_account` / `adjust_sp_account` / `close_sp_account` — tx3 can't encode
+>   the >u64 snapshot decimals (it never emits CBOR bignums). Kept in `.tii`, documented as blocked.
+> - **Not implemented (2 CDP):** `create_cdp` / `close_cdp` — V3 redesign (treasury + withdrawal-purpose
+>   Pyth validators + index-coupled redeemer; frozen/liquidation variants) is beyond tx3's faithful reach.
+> - **Deployed `protocols/indigo.tii` = 8 methods.** The §1–§7 below are the original handoff (historical).
+>
+> ---
+>
+> **Status (2026-06-16, historical):** Indigo redeployed its contracts on-chain (**"V3"**) and migrated to
 > them on **2026-05-28**. This tx3 protocol (`main.tx3` / `.tii` / `.env.mainnet`) still targets
 > the **old "VX" deployment, which is now dead**. The protocol must be re-pointed to V3 and
 > re-verified before it builds valid transactions again.
