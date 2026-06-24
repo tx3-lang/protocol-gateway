@@ -320,6 +320,8 @@ type StakingRedeemer {
 //          user gets minted iAssets + change
 //
 // Reference inputs: validator scripts + oracle/config data UTxOs
+/// Open a new CDP: deposit ADA as collateral and mint a CDP NFT plus iAsset debt
+/// tokens (iUSD, iBTC, iETH, iSOL). Consumes the Collector and CDP-Creator UTxOs.
 tx create_cdp(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -478,6 +480,8 @@ tx create_cdp(
 
 // 2a. Adjust CDP — Mint more iAssets (increase debt)
 // On-chain always includes a companion Staking input with Constr(4) redeemer
+/// Adjust an existing CDP by minting additional iAssets (increasing debt) against
+/// the same CDP, updating its datum.
 tx adjust_cdp_mint(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -621,6 +625,8 @@ tx adjust_cdp_mint(
 // 2b. Adjust CDP — Burn iAssets (repay debt, optionally withdraw collateral)
 // On-chain redeemer: Constr(0, [timestamp, -burn_amount, collateral_change])
 // On-chain always includes a companion Staking input with Constr(4) redeemer
+/// Adjust an existing CDP by burning iAssets to repay debt, optionally withdrawing
+/// some freed collateral.
 tx adjust_cdp_burn(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -771,6 +777,8 @@ tx adjust_cdp_burn(
 // Consumes: CDP UTxO + Collector UTxO + StabilityPool UTxO + Staking UTxO
 // Burns: -1 CDP NFT, -N iAsset tokens
 // Returns collateral to user.
+/// Close a CDP: burn all outstanding iAsset debt and the CDP NFT, recovering all of
+/// the ADA collateral back to the user.
 tx close_cdp(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -943,6 +951,8 @@ tx close_cdp(
 //
 // Consumes: Account UTxO at SP address (continuity — sets accRequest)
 // The account UTxO is created/updated with accRequest = Just(Create)
+/// Request a Stability Pool account, depositing iAsset tokens. This is the user-facing
+/// request step of the V2 request/process pattern (a batcher processes it later).
 tx create_sp_account(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -1040,6 +1050,8 @@ tx create_sp_account(
 // ============================================================
 // User requests an adjustment to their SP account deposit.
 // V2: uses RequestAction(Adjust { amount, outputAddress })
+/// Request an adjustment to a Stability Pool account's deposit (RequestAction Adjust),
+/// setting the account's pending request to the new amount and output address.
 tx adjust_sp_account(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -1145,6 +1157,8 @@ tx adjust_sp_account(
 // ============================================================
 // User requests closure of their SP account.
 // V2: uses RequestAction(Close { outputAddress })
+/// Request closure of a Stability Pool account (RequestAction Close); a batcher later
+/// returns the deposit and rewards to the given output address.
 tx close_sp_account(
     owner_pkh: Bytes,
     iasset_name: Bytes,
@@ -1255,6 +1269,8 @@ tx close_sp_account(
 //   - current_snapshot_ada: current managerSnapshot.snapshotAda
 // The new position's positionSnapshot is initialised to the same snapshot,
 // so the user starts earning rewards from now.
+/// Open an INDY staking position: stake INDY tokens and mint a STAKING_POSITION NFT,
+/// increasing the manager's total stake, to start earning ADA fee rewards.
 tx create_staking(
     owner_pkh: Bytes,
     indy_amount: Int,
@@ -1350,6 +1366,7 @@ tx create_staking(
 // NOTE: the Collector validator is NOT referenced by the on-chain
 // validateAdjustStakedAmount. See
 // indigo-smart-contracts/src/Indigo/Contracts/Staking/OnChain.hs.
+/// Add or remove INDY from an existing staking position, updating the locked amount.
 tx adjust_staking(
     owner_pkh: Bytes,
     indy_policy_id: Bytes,
@@ -1416,6 +1433,8 @@ tx adjust_staking(
 // NOTE: the Collector validator is NOT referenced by the on-chain
 // validateUnstake. See
 // indigo-smart-contracts/src/Indigo/Contracts/Staking/OnChain.hs.
+/// Close a staking position entirely, withdrawing all staked INDY plus the accrued
+/// ADA rewards back to the user.
 tx unstake(
     owner_pkh: Bytes,
     position_utxo: UtxoRef,
