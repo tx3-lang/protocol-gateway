@@ -72,11 +72,16 @@ type MintRedeemer {
 // Params:
 //   owner_pkh     — staker's payment key hash (required signer + owner NFT asset name)
 //   amount        — quantity of STRIKE tokens to stake
-//   staked_at     — POSIX timestamp in milliseconds (caller-provided, see limitation #3)
+//
+// staked_at is no longer a caller param (tx3 0.23): it is computed on-chain
+// from the tx validity tip. slot_to_time(tip_slot()) returns cursor.timestamp,
+// which the mainnet TRP populates in POSIX *seconds* (verified by live-resolve
+// 2026-06-24), so we multiply by 1000 to get the POSIX milliseconds the Plutus
+// contract expects. The value is bounded by the validity window (until_slot =
+// tip_slot() + 200), so the contract validates it falls inside that interval.
 tx stake(
     owner_pkh: Bytes,
     amount: Int,
-    staked_at: Int,
 ) {
     locals {
         tracker_token: AnyAsset(mint_policy_id, tracker_asset_name, 1),
@@ -121,7 +126,7 @@ tx stake(
         amount: Ada(2500000) + strike + tracker_token + owner_nft,
         datum: StakingDatum {
             owner_address_hash: owner_pkh,
-            staked_at: staked_at, // (slot_to_time(tip_slot()) + 200),
+            staked_at: slot_to_time(tip_slot()) * 1000,
             mint_policy_id: mint_policy_id,
         },
     }

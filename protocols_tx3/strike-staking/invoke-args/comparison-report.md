@@ -101,12 +101,29 @@ All redeemers match the on-chain contract exactly:
 
 ## Notes
 
+- **`staked_at` now computed on-chain (2026-06-24, tx3 0.23):** the `stake` tx no longer takes a `staked_at`
+  caller param — the datum field is `slot_to_time(tip_slot()) * 1000`. `slot_to_time(tip_slot())` resolves to
+  the TRP's `cursor.timestamp`, which the mainnet TRP gives in POSIX **seconds**, so `* 1000` yields the ms the
+  contract expects. Verified by live `trp.resolve`: the field resolves to a 13-digit ms value inside the
+  validity window (e.g. `1782314668000`), matching the scale of the real on-chain stake datum
+  (`f70239fa…` = `1773146014192`). The structural `stake` row above (datum = 3 fields, etc.) still holds; only
+  the *origin* of `staked_at` changed (computed vs caller-provided), so this row is intentionally no longer a
+  byte-for-byte match against the old caller-provided fixture. `invoke-args/stake.json` no longer carries `staked_at`.
 - **Owner NFT stays in the script (2026-04-13 fix):** The on-chain contract requires the owner NFT to be locked in the script UTxO, not held in the staker's wallet. This was confirmed by inspecting the Aiken source (`validators/staking.ak`) and verified against all 3 reference transactions. The `main.tx3` was corrected: `stake` now sends the owner NFT to the script output, and `add_stake`/`withdraw_stake` no longer require the owner NFT in the staker's `source` input.
 - The `add_stake` transaction required a workaround: the datum spread syntax (`...current_stake`) caused a TRP error (`property index 0 not found in None`). The fix was to replace it with explicit datum fields and pass `staked_at_time` as an additional parameter.
 - The `main.tx3` protocol matches the active contract (PlutusV3, script hash `497a8b...`) as published on the Strike Finance GitHub repository.
 - All environment values (policy IDs, reference script UTxO, script address) are loaded from `.env.mainnet` via the built-in mainnet profile.
 
 ## How to Reproduce
+
+> **Fixtures refreshed 2026-06-24:** the old `add_stake`/`withdraw_stake` fixtures pointed at a now-spent
+> stake position (`bf528925…#1`) whose owner wallet no longer had STRIKE/collateral, so they failed at
+> `collateral` resolution (chain-state, not codegen). Both were re-pointed to a **live** position
+> (`7664936a…#0`, owner `e139f905…`) whose wallet currently holds ~13.37B free STRIKE + 34 ADA. All three
+> txs now live-resolve end-to-end (verified via direct `trp.resolve`): `add_stake` spend `Constr(0,[])` +
+> datum preserves the original `staked_at` (`1748818112948`, 13-digit ms); `withdraw_stake` spend
+> `Constr(1,[])` + mint Burn `Constr(1,[owner_pkh])`. These are **build/resolve smoke tests only** — the
+> staker is a third-party position, do not submit.
 
 ```bash
 cd protocols_tx3/strike-staking

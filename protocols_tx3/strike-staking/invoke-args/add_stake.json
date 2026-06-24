@@ -1,6 +1,6 @@
 {
-  "staker": "addr1qxxq5f8lf6t7gjkygqfua74mtqmpacw52kwla4303sly0tscpsfhyqy7svf3xtlme3lq988jha3z8lu9ek6sdwdduw4qfnhjdq",
-  "owner_pkh": "8c0a24ff4e97e44ac44013cefabb58361ee1d4559dfed62f8c3e47ae",
-  "staking_utxo": "bf528925d7b88190ad6c43be57084161e07c2e40a9db672c9c4412d76955915f#1",
+  "staker": "addr1q8snn7g9cjkq2yamatx6rsduv9pz5fgg69xs3k89p2nrwysxf3fhfyaz9vja6cwvaup5mtjvssmfmemqxfy2e2lkkjqsgehyy7",
+  "owner_pkh": "e139f905c4ac0513bbeacda1c1bc61422a2508d14d08d8e50aa63712",
+  "staking_utxo": "7664936a52165279a657f747fa7eabfbef3e47a08cdb242eb68d29129c7298a5#0",
   "additional_amount": 10000000
 }

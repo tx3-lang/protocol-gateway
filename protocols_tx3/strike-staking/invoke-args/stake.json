@@ -1,6 +1,5 @@
 {
   "staker": "addr1q837d686cqw3pzzj3fv98had2ng8k0hz3rfcdfuasw6t9rjdsugmhaytxhnrsn9ajjh30jfwh8uc2s5l3d0yk3u9aydsgg30jx",
   "owner_pkh": "e3e6e8fac01d1088528a5853dfad54d07b3ee288d386a79d83b4b28e",
-  "amount": 10000000,
-  "staked_at": 1774311679326
+  "amount": 10000000
 }
