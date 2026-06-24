@@ -58,6 +58,15 @@ type RemoveLiqMinAmounts {
     min_token_b: Int,
 }
 
+// Redeemer spent on the per-pool order validator (only used by cancel).
+//   Process — Constr(0, []) — batcher executes the order (VyFi infra, not here).
+//   Cancel  — Constr(1, []) — owner reclaims their order. Verified against the
+//             real cancel tx 34a41f7f (redeemer = Constr(1, [])).
+type OrderRedeemer {
+    Process,
+    Cancel,
+}
+
 // --- Transactions ---
 
 // Swap ADA for Token (A → B)
@@ -70,7 +79,7 @@ tx swap_a_to_b(
     // Minimum amount of token B to receive
     min_out: Int,
 ) {
-    input source {
+    input* source {
         from: User,
         min_amount: Ada(swap_amount + process_fee) + fees,
     }
@@ -105,21 +114,28 @@ tx swap_b_to_a(
     token_amount: Int,
     // Minimum amount of ADA (lovelace) to receive
     min_out: Int,
-    // ADA to attach to order UTxO (min UTxO + process fee)
-    order_ada: Int,
+    // Min-UTxO ADA buffer held in the order UTxO (the process fee is added from
+    // env). On-chain this is a frontend/wallet choice — mostly 2_000_000, but it
+    // varies per pool/wallet (1_050_000 .. 2_100_000 observed). It is NOT the
+    // protocol's computed min_utxo (that would resolve to ~1.3M and diverge from
+    // the dominant 3.9M order), so it stays a caller param. See README.
+    order_min_ada: Int,
 ) {
     locals {
         swap_tokens: AnyAsset(token_policy, token_name, token_amount),
+        // ADA attached to the order = min-UTxO buffer + the VyFi process fee
+        // (env). Mirrors the ADA-side orders, which also add process_fee.
+        order_ada: Ada(order_min_ada + process_fee),
     }
 
-    input source {
+    input* source {
         from: User,
-        min_amount: Ada(order_ada) + swap_tokens + fees,
+        min_amount: order_ada + swap_tokens + fees,
     }
 
     output {
         to: OrderScript,
-        amount: Ada(order_ada) + swap_tokens,
+        amount: order_ada + swap_tokens,
         datum: OrderDatum {
             user_creds: user_creds,
             order_type: OrderType::SwapBToA {
@@ -130,7 +146,7 @@ tx swap_b_to_a(
 
     output {
         to: User,
-        amount: source - Ada(order_ada) - swap_tokens - fees,
+        amount: source - order_ada - swap_tokens - fees,
     }
 }
 
@@ -154,7 +170,7 @@ tx add_liquidity(
         deposit_tokens: AnyAsset(token_policy, token_name, token_amount),
     }
 
-    input source {
+    input* source {
         from: User,
         min_amount: Ada(ada_amount + process_fee) + deposit_tokens + fees,
     }
@@ -191,21 +207,25 @@ tx remove_liquidity(
     min_out_ada: Int,
     // Minimum token B to receive back
     min_out_token: Int,
-    // ADA to attach to order UTxO (min UTxO + process fee)
-    order_ada: Int,
+    // Min-UTxO ADA buffer held in the order UTxO (process fee added from env).
+    // Caller param for the same reason as in swap_b_to_a (frontend choice, not
+    // derivable on-chain).
+    order_min_ada: Int,
 ) {
     locals {
         lp_tokens: AnyAsset(lp_policy, lp_name, lp_amount),
+        // ADA attached to the order = min-UTxO buffer + the VyFi process fee.
+        order_ada: Ada(order_min_ada + process_fee),
     }
 
-    input source {
+    input* source {
         from: User,
-        min_amount: Ada(order_ada) + lp_tokens + fees,
+        min_amount: order_ada + lp_tokens + fees,
     }
 
     output {
         to: OrderScript,
-        amount: Ada(order_ada) + lp_tokens,
+        amount: order_ada + lp_tokens,
         datum: OrderDatum {
             user_creds: user_creds,
             order_type: OrderType::RemoveLiquidity {
@@ -219,6 +239,81 @@ tx remove_liquidity(
 
     output {
         to: User,
-        amount: source - Ada(order_ada) - lp_tokens - fees,
+        amount: source - order_ada - lp_tokens - fees,
+    }
+}
+
+// Cancel a pending order
+//
+// The ONLY tx in this protocol that executes a script. It spends the user's own
+// order UTxO at the per-pool order validator (PlutusV1) with the Cancel redeemer
+// (Constr(1, [])) and returns the locked funds to the user. VyFi attaches no
+// reference scripts, so the order validator is supplied inline as a witness.
+//
+// Verified against the real cancel tx 34a41f7f (ADA/SNEK pool):
+//   - input: order UTxO at the order script, redeemer Constr(1, [])
+//   - output 0: the order's full value back to the user
+//   - output 1: change (user funding input - fee)
+//   - collateral from the user, validity interval [since_slot, until_slot]
+//
+// Params:
+//   order_utxo   — UtxoRef of the order to cancel (at the pool's order address).
+//   order_script — the pool's order validator, PlutusV1 CBOR. These are the
+//                  bytes whose blake2b-224 (with the 0x01 language tag) equals
+//                  the order address' script hash — i.e. the doubly-wrapped
+//                  script as returned by Koios `script_info.bytes` / the VyFi
+//                  API (e.g. ADA/SNEK = 590a8c0100003323..., hash 2c0f418d...).
+//   since_slot   — validity lower bound (invalid_before).
+//   until_slot   — validity upper bound (invalid_after). The real cancel sets
+//                  both bounds (a ~3h window); the validator needs the owner's
+//                  signature, proven by spending the user's funding input.
+tx cancel(
+    order_utxo: UtxoRef,
+    order_script: Bytes,
+    since_slot: Int,
+    until_slot: Int,
+) {
+    // The order being cancelled. Spent with the Cancel redeemer; its address
+    // (= the order validator) is matched against the inline plutus_witness.
+    input order_input {
+        ref: order_utxo,
+        datum_is: OrderDatum,
+        redeemer: OrderRedeemer::Cancel {},
+    }
+
+    // User wallet — supplies fees and collateral, and receives the funds back.
+    input* source {
+        from: User,
+        min_amount: fees,
+    }
+
+    // A script executes, so collateral is required.
+    collateral {
+        from: User,
+        min_amount: fees,
+    }
+
+    // Time window of the cancel (matches the real tx, both bounds set).
+    validity {
+        since_slot: since_slot,
+        until_slot: until_slot,
+    }
+
+    // Return the order's full value (ADA + tokens) to the user.
+    output {
+        to: User,
+        amount: order_input,
+    }
+
+    // Change back to the user.
+    output {
+        to: User,
+        amount: source - fees,
+    }
+
+    // Attach the order validator inline (VyFi uses no reference scripts).
+    cardano::plutus_witness {
+        version: 1,
+        script: order_script,
     }
 }

@@ -6,5 +6,5 @@
     "token_name": "534e454b",
     "token_amount": 200000,
     "min_out": 300000000,
-    "order_ada": 3900000
+    "order_min_ada": 2000000
 }
