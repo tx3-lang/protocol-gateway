@@ -147,6 +147,59 @@ locals {
 
 ---
 
+### 7. Nested / list metadata cannot be emitted — `674` block dropped
+
+> **Re-verified 2026-06-25 against the most recent on-chain txs (trix 0.26.2 / tx3-cardano 0.23.0).**
+> This is the global quirk #14, confirmed still open in 0.23 — and it is **the single biggest gap**
+> between our user txs and the real ones.
+
+**On-chain reality:** every real Bodega buy / sell / reward tx carries a CIP-20 `674` block, and
+batcher txs additionally carry a CIP-25 `721` block. The `674` block is **not cosmetic** — it is
+the trade record the Bodega indexer / UI reads. Real shape (buy `9ae49a2a…`, market 262F):
+
+```jsonc
+674: {
+  "msg":  ["Bodega Market - Buy Position", "FIFA WC | France or Spain wins the World Cup", "Yes"],
+  "data": { "id": "262F_FIFA_WC_FRANCE_", "option": 0, "side": "Yes", "action": "Buy Position",
+            "address": ["addr1q822…", "00g5r3mg…"], "time": 1782399613363,
+            "amount": 226, "asset": "", "price": 429935 },
+  "hash": "7bb9c58a8086d1694386a541027bfcef113b846dd95428c19bf82b7f94d86a61"
+}
+```
+
+`msg` is a `List<String>` and `data` is a nested `Map`.
+
+**Why tx3 can't emit it (source-confirmed, not just observed):**
+
+- `tx3-cardano-0.23.0/src/coercion.rs::expr_into_metadatum` matches **only**
+  `tir::Expression::{Number, String, Bytes}` → everything else falls through to
+  `CoerceError(_, "Metadatum")`. There is **no `Map` or `List`/`Array` arm**, even though pallas's
+  `Metadatum` enum has `Map` and `Array` variants.
+- `tx3-cardano-0.23.0/src/compile/mod.rs::compile_auxiliary_data` calls `expr_into_metadatum`
+  directly on each `674` value, so a `Map`/`List` value errors out the whole resolution.
+- `trix check` and `trix build` **both pass** — the grammar accepts the nested literal and the
+  TIR even contains `{"Map": …}` / `{"List": …}` nodes (verified via `trix inspect tir`). The
+  failure is at **resolve** time, which is why a build-only check is misleading here.
+- Even a single top-level `674 => "string"` would technically resolve, but it does **not** match
+  the real shape (a `Map`) and is non-standard CIP-20, so it was not added.
+
+**Decision (2026-06-25):** leave the `674`/`721` metadata **off** and **escalate the tx3 fix** (see
+below). The position datum is value-correct and the on-chain validator/batcher ignore metadata, so
+funds and shares flow correctly; the only loss is byte-identity and the Bodega-indexer trade record.
+
+**Escalation — tx3 feature request:** add `Map` and `Array` arms to
+`tx3-cardano/src/coercion.rs::expr_into_metadatum` (recursively coercing `tir::Expression::Struct`/
+record → `Metadatum::Map` and `tir::Expression::List`/`Tuple` → `Metadatum::Array`), so the existing
+grammar + TIR support (which already lower nested literals) reaches the resolver. With that one
+function fixed, `buy_position` / `sell_position` / `submit_reward` could emit the exact `674` block
+and become byte-identical to the Bodega-frontend txs. Tracked in `protocols_tx3/TX3-0.23-UPGRADE.md`
+and global memory quirk #14.
+
+**Affected txs:** all user-facing txs (`buy_position`, `sell_position`, `submit_reward`); also blocks
+implementing batcher txs' `721` NFT metadata.
+
+---
+
 ## ~~Solved~~ Limitations (fixed in recent tx3c releases)
 
 ### ~~Reference Inputs Cannot Read Datum Values~~ — SOLVED in tx3c v0.17.0
@@ -187,6 +240,7 @@ Real on-chain txs include explicit `collateral_return` (field 16) and `total_col
 | 4 | ~~Active~~ → **Solved (#343, 0.23)** | ~~Enums not passable as params~~ | `candidate: CandidateIdx` param (arg `{"struct":{"constructor":N,"fields":[]}}`) | 6 variants → **3 txs**; needs a resolver ≥0.23 |
 | 5 | Active | No conditional logic | Not implemented (no token markets active) | Would need `_ada`/`_token` variants for buy/sell |
 | 6 | Active | Ref datum fields only in datum construction | Keep params for amount-used fields | 4 extra params across submit_reward + sell_position |
+| 7 | Active (escalated) | Nested/list metadata not coercible (`coercion.rs::expr_into_metadatum` = primitives only; quirk #14, re-verified 0.23) | Drop the `674`/`721` block; fix tx3 to emit it | All user txs lack the CIP-20 trade record; not byte-identical to real txs |
 | - | ~~Solved~~ | ~~Reference inputs can't read datums~~ | Fixed in tx3c v0.17.0 (#318) | `outref_id` now read from reference |
 | - | ~~Solved~~ | ~~Record field name shadowing panic~~ | Fixed in tx3c v0.17.0 (#316) | No longer need to rename params |
 
