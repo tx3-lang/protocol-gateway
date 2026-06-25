@@ -11,6 +11,10 @@
   "snap_d": "5778254216280652979355552853",
   "snap_epoch": 0,
   "snap_scale": 0,
-  "deposits": { "list": [] },
-  "created_at": 1780668453000
+  "deposits": {
+    "list": []
+  },
+  "created_at": 1780668453000,
+  "cdpuseraddr": "addr1z8lsky9l7g8yk695j9yjukaxeqzg5uz8vwc2gh8zn9w6p04fm42n05s46eyd7mdsvhdlg2hq4sg8vgvped8w7mlq65gqu9z8ml",
+  "feedvalidator": "stake17yw5cru9mj7vyv83258nq46zqmzmn0wl73ahky67mvfdu6gg9h5q8"
 }

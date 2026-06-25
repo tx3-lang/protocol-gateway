@@ -56,6 +56,36 @@ from params); create needs the cdpCreator's **input index**, which depends on th
 (which user UTxOs get pulled, and their txids) — not predictable by the caller before resolve. So create stays
 out of reach (the output/ref indices are predictable; the input index is the blocker).
 
+## Detailed generated-vs-on-chain comparison (2026-06-25)
+
+Generated each tx (cshell `trix invoke --skip-submit` and the equivalent headless `trp.resolve`),
+fetched the real on-chain reference (`tx_cbor`), decoded both with one decoder, compared **by value**
+(definite vs indefinite CBOR arrays are value-equivalent). Result: **all 8 working txs are structurally
+identical to their on-chain reference.**
+
+| tx | verdict |
+|---|---|
+| create_staking | ✅ scripts + mint (+1 STAKING_POSITION) + datums (Manager `C0[C0[total,C0[snap]]]`, Position `C1[C0[owner,[],C0[snap]]]`) match; snapshot value identical |
+| adjust_staking | ✅ co-spend redeemers `C3[delta]`(AdjustStakedAmount) + `C1[]`(UpdateTotalStake); datums match |
+| unstake | ✅ burn −1 STAKING_POSITION; redeemers `C4[]`(Unstake) + `C1[]`; datums match |
+| adjust_cdp_mint | ✅ ref scripts EXACT; AdjustCdp `C0[ts,0,Δcol,OracleVoid]`; 5-field CDP datum + collector `C0[]` match |
+| adjust_cdp_burn | ✅ ref scripts EXACT; AdjustCdp `C0[ts,−Δdebt,0,OracleVoid]`; datums match |
+| close_cdp | ✅ `CloseCdp C1[ts]`; burns NFT + full debt; collector `C0[]`. (per-iAsset refs differ only because the on-chain ref closed an iBTC CDP vs my iUSD) |
+| withdraw_cdp | ✅ **two Pyth withdrawals** (`f1·4949403eec` state + `f1·1d4c0f85` feed) + redeemers (feed price `C0[C0[a,b],C0[]]` + Pyth message) match; no treasury (correct) |
+| borrow_cdp | ✅ two Pyth withdrawals + **Treasury `C4`** redeemer + **OutRef continuity datum** `C0[C0[C0[OutRef],_],C0[OutRef]]` — all match the on-chain borrow `6b8e6d44` |
+
+**Metadata:** NONE — no Indigo V3 tx (generated or on-chain) carries transaction metadata (no aux-data hash).
+
+**Bug caught by the comparison + FIXED:** `withdraw_cdp`/`borrow_cdp` were missing the **iAsset config
+reference input** (`fb6cd010#0`) that `adjustCdp`'s ref set requires (the on-chain borrow references
+`fb6cd010` twice = config #0 + state #2; mine had only #2). Added `iasset_config_utxo` to both. After the fix,
+the only remaining ref-set difference is the **interest-oracle instance** (a singleton updated over time —
+mine uses the current unspent UTxO, the reference tx used the one current at its block).
+
+**Legitimate (expected) differences in every comparison:** input UTxOs, fees, validity slots, the specific
+amounts/owner/CDP/collateral-asset, input & output ORDER (Cardano sorts inputs/refs by txid), and
+definite-vs-indefinite CBOR array encoding.
+
 ## Reference transactions (real V3 on-chain, used as ground truth)
 
 | Flow | tx hash |

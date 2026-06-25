@@ -2,7 +2,9 @@
   "user": "addr1q83lj8t4upmuesy6cffz8gm2utq9pdtspxzcxq0rtekdr0z5gl2733dgyt7fael74nyc4llpu5vt2w2m43243drt8ehsf9na2v",
   "owner_pkh": "e3f91d75e077ccc09ac25223a36ae2c050b57009858301e35e6cd1bc",
   "indy_amount": 1000000000,
-  "manager_utxo": "d1299c8c5bde044e402d324ccdbdcc593bca622c69552a4d0cebeaa29f6997fe#0",
-  "old_total_stake": 13071527161754,
-  "current_snapshot_ada": 1423157470784
+  "manager_utxo": "d36bbe71b3bc6c56ff52224190566f55d696df32bde39d6aa5dae0f70dbd399e#0",
+  "old_total_stake": 13081098710122,
+  "current_snapshot_ada": 1423157470784,
+  "cdpuseraddr": "addr1z8lsky9l7g8yk695j9yjukaxeqzg5uz8vwc2gh8zn9w6p04fm42n05s46eyd7mdsvhdlg2hq4sg8vgvped8w7mlq65gqu9z8ml",
+  "feedvalidator": "stake17yw5cru9mj7vyv83258nq46zqmzmn0wl73ahky67mvfdu6gg9h5q8"
 }

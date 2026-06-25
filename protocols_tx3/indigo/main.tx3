@@ -934,6 +934,7 @@ tx withdraw_cdp(
     feed_price_a: Int,
     feed_price_b: Int,
     feed_val_ref: UtxoRef,
+    iasset_config_utxo: UtxoRef,
     collateral_asset_utxo: UtxoRef,
     interest_oracle_utxo: UtxoRef,
 ) {
@@ -971,6 +972,11 @@ tx withdraw_cdp(
     // Per-iAsset Pyth feed validator ref script.
     reference feed_ref {
         ref: feed_val_ref,
+    }
+
+    // iAsset config (the per-iAsset IAssetContent) — required by adjustCdp's reference set.
+    reference iasset_config_data {
+        ref: iasset_config_utxo,
     }
 
     reference collateral_asset_data {
@@ -1112,6 +1118,7 @@ tx borrow_cdp(
     feed_price_a: Int,
     feed_price_b: Int,
     feed_val_ref: UtxoRef,
+    iasset_config_utxo: UtxoRef,
     collateral_asset_utxo: UtxoRef,
     interest_oracle_utxo: UtxoRef,
 ) {
@@ -1166,6 +1173,11 @@ tx borrow_cdp(
 
     reference feed_ref {
         ref: feed_val_ref,
+    }
+
+    // iAsset config (the per-iAsset IAssetContent) — required by adjustCdp's reference set.
+    reference iasset_config_data {
+        ref: iasset_config_utxo,
     }
 
     reference collateral_asset_data {

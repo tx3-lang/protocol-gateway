@@ -1,12 +1,14 @@
 {
   "user": "addr1q8yah9m0lqhv0jahru9gzw3ug5hcjkxt038gvslsy5qvssrlm92suas3xz8e6ureljlkzzdwmx9zhh53tqqggqj9rllq5a8552",
-  "owner_pkh": "c29d5528eb46fe3ba5ba0749ef46def4b38eb1cd0bf8c43596c3ff75",
+  "owner_pkh": "20d5a7318403f47d2e69563f9e441426433c71a7e50dacf3ffc2bed9",
   "iasset_name": "69555344",
-  "cdp_utxo": "151dfa170a14f77cdb22cc650f85151ed7ffdb42984faf80947cb971cf897aaf#0",
+  "cdp_utxo": "0d85bfc3135cd8d3db26b1437f27a81627a9efb6312bbc6b68711f3875323faa#0",
   "collector_utxo": "b1b3c695b3d11d26852a1b7384659689dfe179592ed889b335ea682b7afd6fb5#0",
-  "burn_amount": 1000000,
+  "burn_amount": 4000000,
   "interest_fee": 100,
-  "timestamp_ms": 1782322416000,
+  "timestamp_ms": 1782398488000,
   "collateral_asset_utxo": "fb6cd010b29b585770cd493e2b65e1c6075ae9601a7a0d2b925a844ea93fe93c#2",
-  "interest_oracle_utxo": "4c4df07610a68aafbc66c17248df207a39a186e486ffd06621c4db718e46bf04#0"
+  "interest_oracle_utxo": "4c4df07610a68aafbc66c17248df207a39a186e486ffd06621c4db718e46bf04#0",
+  "cdpuseraddr": "addr1z8lsky9l7g8yk695j9yjukaxeqzg5uz8vwc2gh8zn9w6p04fm42n05s46eyd7mdsvhdlg2hq4sg8vgvped8w7mlq65gqu9z8ml",
+  "feedvalidator": "stake17yw5cru9mj7vyv83258nq46zqmzmn0wl73ahky67mvfdu6gg9h5q8"
 }
