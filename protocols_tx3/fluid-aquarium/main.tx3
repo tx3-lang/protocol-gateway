@@ -59,10 +59,11 @@ env {
 // --- Types ---
 
 // --- Plutus Address types (on-chain representation) ---
-// Used by: ScheduledTx redeemer (batcher field), StakerRedeemer (owner, signer_bot)
-// Currently passed as Bytes due to tx3 limitation #3 (custom types as params).
-// When tx3 supports custom type args, switch batcher/owner/signer_bot
-// from Bytes to PlutusAddress.
+// Used by: TankDatum (tank_owner, destination), ScheduledTx redeemer (batcher),
+// StakerRedeemer (owner, signer_bot).
+// Constructed inline from plain payment/stake hash params via `fn owner_address`
+// (#343 self-describing args + #311 functions, tx3 0.23) — the old raw-CBOR
+// `batcher_addr_cbor` / `staker_redeemer_cbor` params are gone.
 
 // Credential — payment or staking credential
 // On-chain: VerificationKey(hash) = Constr(0, [ByteArray])
@@ -173,7 +174,7 @@ type TankRedeemer {
     WithdrawTank,
     ScheduledTx {
         input_tank_idx: Int,
-        batcher: Bytes,              // TODO: switch to PlutusAddress when tx3 supports custom type args
+        batcher: PlutusAddress,      // batcher's reward address (built inline, #343)
         ref_staking_idx: Int,
         ref_params_idx: Int,
         whitelist_idx: Int,
@@ -197,10 +198,11 @@ type TankRedeemer {
 }
 
 // Staker mint redeemer
-// TODO: switch owner and signer_bot to PlutusAddress when tx3 supports custom type args
+// owner / signer_bot are full plutus addresses, built inline (#343) from
+// payment+stake hash params instead of the old raw-CBOR `staker_redeemer_cbor`.
 type StakerRedeemer {
-    owner: Bytes,                    // PlutusAddress (owner wallet)
-    signer_bot: Bytes,               // PlutusAddress (bot wallet)
+    owner: PlutusAddress,            // owner wallet
+    signer_bot: PlutusAddress,       // bot wallet (stake hash == staker NFT name)
     ref_index: Int,
     output_staking: Int,
     staking_inputs: Int,
@@ -261,12 +263,33 @@ type OracleSignature {
 }
 
 // Oracle redeemer — wraps the price feed + signatures
-// NOTE: signatures list cannot be passed as a param (tx3 limitation on
-// custom types as args). Hardcoded as empty list [] since on-chain
-// PriceDataCharlie txs use 0 signatures (oracle validated via ref input).
+// `signatures` is now a real `List<OracleSignature>` param (#343), passed empty
+// for PriceDataCharlie (oracle validated via ref input) but available for the
+// signature-bearing feed variants (Aggregated/Pooled/Dedicated).
 type OracleRedeemer {
     feed: OraclePriceFeed,
     signatures: List<OracleSignature>,
+}
+
+// --- Functions ---
+
+// Build a wallet's on-chain plutus address (key-hash payment + inline key-hash
+// stake) from plain hash params. Factored out (#311) since the tank datum,
+// scheduled-tx redeemer and staker redeemer all construct the same shape:
+//   Constr(0, [ Constr(0,[pkh]), Constr(0,[Constr(0,[Constr(0,[stake])])]) ])
+fn owner_address(pkh: Bytes, stake_key: Bytes) -> PlutusAddress {
+    PlutusAddress {
+        payment: Credential::VerifKey {
+            hash: pkh,
+        },
+        stake: MaybeStakeCred::SomeStake {
+            inline: InlineStake {
+                cred: Credential::VerifKey {
+                    hash: stake_key,
+                },
+            },
+        },
+    }
 }
 
 // ============================================================
@@ -278,11 +301,12 @@ type OracleRedeemer {
 // The datum encodes which tokens the tank owner accepts as payment
 // and the exchange rate (or oracle reference).
 
+/// Create a babel-fee tank: a UTxO at the tank script address whose datum names
+/// the owner and (empty here) the accepted tokens. No script execution.
 tx create_babel_tank(
     tank_ada: Int,
     owner_payment_hash: Bytes,
     owner_stake_hash: Bytes,
-    empty_bytes: Bytes,
 ) {
     input source {
         from: User,
@@ -294,34 +318,20 @@ tx create_babel_tank(
         amount: Ada(tank_ada),
         datum: TankDatum {
             allowed_tokens: [],
-            tank_owner: PlutusAddress {
-                payment: Credential::VerifKey { hash: owner_payment_hash, },
-                stake: MaybeStakeCred::SomeStake {
-                    inline: InlineStake {
-                        cred: Credential::VerifKey { hash: owner_stake_hash, },
-                    },
-                },
-            },
+            tank_owner: owner_address(owner_payment_hash, owner_stake_hash),
             whitelisted: [],
             execution_time: 0,
-            destination: PlutusAddress {
-                payment: Credential::VerifKey { hash: owner_payment_hash, },
-                stake: MaybeStakeCred::SomeStake {
-                    inline: InlineStake {
-                        cred: Credential::VerifKey { hash: owner_stake_hash, },
-                    },
-                },
-            },
+            destination: owner_address(owner_payment_hash, owner_stake_hash),
             scheduled_amount: CardanoToken {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
                 amount: 0,
                 divider: 1000000,
                 oracle: MaybeAsset::NoAsset {},
             },
             reward: CardanoToken {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
                 amount: 0,
                 divider: 1000000,
                 oracle: MaybeAsset::NoAsset {},
@@ -342,11 +352,12 @@ tx create_babel_tank(
 // The datum specifies: destination, amount, reward, and execution time.
 // No script execution required — simple deposit.
 
+/// Create a scheduled-transaction tank: same shape as a babel tank but with a
+/// future `execution_time` plus the ADA to pay out and the batcher reward.
 tx create_scheduled_tank(
     tank_ada: Int,
     owner_payment_hash: Bytes,
     owner_stake_hash: Bytes,
-    empty_bytes: Bytes,
     execution_time: Int,
     scheduled_ada: Int,
     reward_ada: Int,
@@ -361,34 +372,20 @@ tx create_scheduled_tank(
         amount: Ada(tank_ada),
         datum: TankDatum {
             allowed_tokens: [],
-            tank_owner: PlutusAddress {
-                payment: Credential::VerifKey { hash: owner_payment_hash, },
-                stake: MaybeStakeCred::SomeStake {
-                    inline: InlineStake {
-                        cred: Credential::VerifKey { hash: owner_stake_hash, },
-                    },
-                },
-            },
+            tank_owner: owner_address(owner_payment_hash, owner_stake_hash),
             whitelisted: [],
             execution_time: execution_time,
-            destination: PlutusAddress {
-                payment: Credential::VerifKey { hash: owner_payment_hash, },
-                stake: MaybeStakeCred::SomeStake {
-                    inline: InlineStake {
-                        cred: Credential::VerifKey { hash: owner_stake_hash, },
-                    },
-                },
-            },
+            destination: owner_address(owner_payment_hash, owner_stake_hash),
             scheduled_amount: CardanoToken {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
                 amount: scheduled_ada,
                 divider: 1000000,
                 oracle: MaybeAsset::NoAsset {},
             },
             reward: CardanoToken {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
                 amount: reward_ada,
                 divider: 1000000,
                 oracle: MaybeAsset::NoAsset {},
@@ -409,6 +406,8 @@ tx create_scheduled_tank(
 // Requires spending from an address where the tank owner's wallet
 // is present in the inputs (must_be_signed_by_user_contract).
 
+/// Tank owner reclaims the ADA locked in their tank (Withdraw redeemer); the
+/// owner must appear in the inputs to prove ownership.
 tx withdraw_tank(
     tank_utxo: UtxoRef,
 ) {
@@ -461,6 +460,9 @@ tx withdraw_tank(
 //
 // The oracle is validated via a withdrawal with 0 ADA.
 
+/// Babel fee at an oracle-determined rate: a batcher spends part of a tank's ADA
+/// to cover a user's tx and the tank owner receives native tokens, priced via the
+/// Charli3 oracle (validated by a 0-ADA withdrawal).
 tx consume_oracle(
     tank_utxo: UtxoRef,
     oracle_provider_ref: UtxoRef,
@@ -480,6 +482,9 @@ tx consume_oracle(
     oracle_valid_to: Int,
     oracle_price: Int,
     oracle_denominator: Int,
+    // ed25519 oracle signatures — empty for Charli3 (validated via ref input),
+    // populated for the signature-bearing feed variants.
+    signatures: List<OracleSignature>,
 ) {
     locals {
         payment_token: AnyAsset(payment_token_policy, payment_token_name, payment_token_qty),
@@ -574,7 +579,7 @@ tx consume_oracle(
                 price: oracle_price,
                 denominator: oracle_denominator,
             },
-            signatures: [],
+            signatures: signatures,
         },
     }
 
@@ -601,10 +606,15 @@ tx consume_oracle(
 
 // NOTE: On-chain scheduled txs are ADA-only in both dest and reward.
 // For token-bearing scheduled txs, a separate variant would be needed.
+
+/// An Aquarium node (batcher) executes a tank's scheduled transaction once its
+/// execution time has passed: pays the destination, the treasury reward, and
+/// keeps the change.
 tx execute_scheduled(
     tank_utxo: UtxoRef,
     staker_ref: UtxoRef,
-    batcher_addr_cbor: Bytes,
+    batcher_payment_hash: Bytes,
+    batcher_stake_hash: Bytes,
     batcher_signer_hash: Bytes,
     ref_staking_idx: Int,
     ref_params_idx: Int,
@@ -633,7 +643,7 @@ tx execute_scheduled(
         ref: tank_utxo,
         redeemer: TankRedeemer::ScheduledTx {
             input_tank_idx: 0,
-            batcher: batcher_addr_cbor,
+            batcher: owner_address(batcher_payment_hash, batcher_stake_hash),
             ref_staking_idx: ref_staking_idx,
             ref_params_idx: ref_params_idx,
             whitelist_idx: 0,
@@ -680,10 +690,19 @@ tx execute_scheduled(
 // User stakes FLDT tokens to register as an Aquarium node.
 // Mints a staker NFT with the bot's stake key hash as asset name.
 
+/// Stake FLDT to register as an Aquarium node: locks FLDT + mints a staker NFT
+/// (named after the bot's stake key) under the staker policy.
 tx stake_fldt(
     stake_amount: Int,
     staker_nft_name: Bytes,
-    staker_redeemer_cbor: Bytes,
+    // Staker redeemer parts (was the raw `staker_redeemer_cbor`):
+    owner_payment_hash: Bytes,
+    owner_stake_hash: Bytes,
+    signer_bot_payment_hash: Bytes,
+    signer_bot_stake_hash: Bytes,    // == staker_nft_name (bot stake key)
+    ref_index: Int,
+    output_staking: Int,
+    staking_inputs: Int,
     signer_hash: Bytes,
 ) {
     locals {
@@ -715,7 +734,13 @@ tx stake_fldt(
     // Mint the staker NFT
     mint {
         amount: staker_nft,
-        redeemer: staker_redeemer_cbor,
+        redeemer: StakerRedeemer {
+            owner: owner_address(owner_payment_hash, owner_stake_hash),
+            signer_bot: owner_address(signer_bot_payment_hash, signer_bot_stake_hash),
+            ref_index: ref_index,
+            output_staking: output_staking,
+            staking_inputs: staking_inputs,
+        },
     }
 
     collateral {

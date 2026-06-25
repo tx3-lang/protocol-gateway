@@ -26,17 +26,17 @@ Discovered with trix 0.20.0 (2026-03-30).
 
 ## Active Limitations (impact on production use)
 
-### 3. `slot_to_time()` Returns Seconds Instead of Milliseconds
+### 3. ~~`slot_to_time()` Returns Seconds — `staked_at` must be a caller param~~ — RESOLVED (tx3 0.23)
 
-The `staked_at` datum field requires POSIX time in milliseconds (as used on-chain by Plutus). `slot_to_time()` exists but returns seconds, making it unusable directly.
-
-**Impact:** The API caller must compute and pass the POSIX timestamp in milliseconds. The commented-out line in `main.tx3` shows the intent:
+**Resolved 2026-06-24** (tx3 0.22 added the `*` operator, #339). The `staked_at` param was **dropped** from `stake`; the datum field is now computed on-chain:
 
 ```tx3
-staked_at: staked_at_time, // (slot_to_time(tip_slot()) + 200),
+staked_at: slot_to_time(tip_slot()) * 1000,
 ```
 
-**If tx3 fixed `slot_to_time()` to return milliseconds (or added a `slot_to_time_ms()` variant), the `staked_at` param could be eliminated from `stake`.** Since tx3 lacks multiplication, even with the seconds value we can't do `slot_to_time(tip_slot()) * 1000`. Note: `add_stake` no longer needs this param thanks to datum spread fix (#2).
+`slot_to_time(tip_slot())` resolves to exactly `cursor.timestamp` (the slot delta is zero at the tip). The mainnet TRP populates `cursor.timestamp` in POSIX **seconds**, so we multiply by 1000 to get the milliseconds the Plutus contract expects. The earlier "tx3 lacks multiplication" blocker is **obsolete** — `*` is legal since 0.22.
+
+**Verified by live-resolve (`trp.resolve`, mainnet TRP, 2026-06-24):** without `*1000` the field resolved to `1782314614` (10-digit seconds); with `*1000` it resolves to `1782314668000` (13-digit ms), matching the scale of the real on-chain stake datum (`f70239fa…` → `1773146014192`, also 13-digit ms) and falling inside the validity window (`staked_at_ms ≤ until_slot→ms`, exactly tip+200 slots). `add_stake` already preserved the field via datum spread (#2), so it needed no change.
 
 ### 4. `collateral_return` / `total_collateral` Not Generated
 
@@ -52,7 +52,7 @@ Real on-chain transactions include explicit `collateral_return` (field 16) and `
 |---|------|-------------|------------|--------------|
 | 1 | ~~Bug~~ | ~~Param/field name collision~~ | **FIXED** (#316) — workarounds removed | 0 |
 | 2 | ~~Bug~~ | ~~Datum spread fails at runtime~~ | **FIXED** — spread works, param removed | 0 |
-| 3 | Limitation | `slot_to_time()` returns seconds, not ms | Caller computes POSIX time in ms | +1 (`staked_at` in `stake`) |
+| 3 | ~~Limitation~~ | ~~`slot_to_time()` returns seconds, not ms~~ | **RESOLVED** (tx3 0.22 `*`) — `staked_at: slot_to_time(tip_slot()) * 1000`, param dropped | 0 |
 | 4 | Limitation | No `collateral_return`/`total_collateral` | None needed (cosmetic) | 0 |
 
-**Total extra params due to limitations:** 1 (`staked_at` in `stake`, could be eliminated with fix #3).
+**Total extra params due to limitations:** 0 (the `staked_at` param was eliminated 2026-06-24 — computed on-chain via `slot_to_time(tip_slot()) * 1000`).

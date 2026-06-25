@@ -37,6 +37,20 @@ party StabilityPoolScript;
 // INDY Staking validator (holds staked INDY tokens)
 party StakingScript;
 
+// Interest Collection validator (holds accumulated iAsset interest fees) — V3 only
+party InterestCollectorScript;
+
+// Pyth State withdraw validator — its REWARD account is withdrawn-from (amount 0) to run
+// the Pyth price update. Fixed (one Pyth State). Used by price-checked CDP ops (withdraw/borrow).
+party PythStateWithdraw;
+
+// Per-iAsset Pyth FEED validator reward account — withdrawn-from (amount 0) to assert the
+// derived price for THIS iAsset. Provided per-call (differs per iAsset).
+party FeedValidator;
+
+// Treasury validator (collects the debt-minting fee on borrow). UTxOs at addr1x form.
+party TreasuryScript;
+
 // --- Environment ---
 // Instance-level config — same for all Indigo mainnet users.
 
@@ -65,14 +79,19 @@ env {
     stability_pool_ref: UtxoRef,             // Stability Pool validator ref script
     staking_ref: UtxoRef,                    // INDY Staking validator ref script
     staking_position_mint_ref: UtxoRef,      // STAKING_POSITION mint policy ref script
+    interest_collection_ref: UtxoRef,        // Interest Collection validator ref script (V3)
+    pyth_state_withdraw_ref: UtxoRef,         // Pyth State UTxO: carries the State NFT (data ref)
+                                             // AND the Pyth-state-withdraw validator ref script
+    treasury_ref: UtxoRef,                    // Treasury validator ref script (borrow only)
 }
 
 // --- Types ---
 
-// CDP Datum — represents a Collateralized Debt Position
-// On-chain: Constr(0, [Constr(0, [Maybe<PKH>, TokenName, Int, Constr(interest)])])
-// Double-wrapped: outer Constr(0) = CDPDatum variant, inner Constr(0) = record fields.
-// NOTE: On-chain has 4 fields (incl. interest tracking), GitHub shows 3.
+// CDP Datum — represents a Collateralized Debt Position.
+// V3 on-chain: Constr(0, [Constr(0, [Maybe<PKH>, TokenName, AssetClass, Int, Constr(interest)])])
+// Double-wrapped: outer Constr(0) = CDPDatum, inner Constr(0) = the 5 record fields.
+// NEW in V3: a collateral AssetClass field at index 2 (multi-collateral support);
+// ("","") = ADA. Confirmed vs on-chain CBOR (e.g. CDP output of tx 813eef7a…).
 type CDPDatum {
     cdp_inner: CDPFields,
 }
@@ -81,6 +100,7 @@ type CDPDatum {
 type CDPFields {
     cdp_owner: MaybePkh,
     cdp_iasset: Bytes,
+    cdp_collateral_asset: AssetClass,
     cdp_minted_amount: Int,
     cdp_interest: CdpInterest,
 }
@@ -124,13 +144,81 @@ type OnChainDecimal {
     ocd_value: Int,
 }
 
-// CDP Redeemer — V2 constructor indices (from indigo-upgrade-details-v2)
-// NOTE: V2 reorder differs from V1! Liquidate moved from index 2 to 6.
+// OracleIdx — the trailing enum in the V3 AdjustCDP redeemer (price-oracle pointer).
+// Confirmed against the v3 SDK (@indigo-labs/indigo-sdk 0.3.28, price-oracle/types-new.ts):
+//   OracleRefInputIdx{idx} = Constr(0,[idx])  — idx = the price oracle's position in the
+//                                                tx's reference_inputs (price-checked ops)
+//   OracleOutputIdx{idx}   = Constr(1,[idx])
+//   OracleVoid             = Constr(2,[])      — no price check (deposit collateral / repay)
+// The SDK rule: `isMintOrWithdraw = debtAdjustment > 0 || collateralAdjustment < 0`
+// selects OracleRefInputIdx{ref idx}; otherwise OracleVoid. So a real BORROW or a
+// collateral WITHDRAW must pass OracleRefInputIdx{idx} (index-coupled to tx3's ref ordering);
+// add-collateral and repay pass OracleVoid.
+type OracleIdx {
+    OracleRefInputIdx {
+        ori_idx: Int,
+    },
+    OracleOutputIdx {
+        oo_idx: Int,
+    },
+    OracleVoid,
+}
+
+// Pyth FEED validator redeemer — Constr(0, [price, auxiliaryData]) where price is a
+// 2-int struct derived off-chain from the Pyth message, and auxiliaryData is unit C0[].
+// Confirmed vs on-chain (1d4c0f85 reward redeemer C0[C0[100000000, 3075258], C0[]]).
+type PythPrice {
+    pp_a: Int,
+    pp_b: Int,
+}
+
+type PythFeedRedeemer {
+    pfr_price: PythPrice,
+    pfr_aux: UnitDatum,
+}
+
+// Output reference — Constr(0, [txHash, index]) (Aiken-style; txid not double-wrapped).
+type OutRef {
+    or_txhash: Bytes,
+    or_idx: Int,
+}
+
+// Treasury "collect debt-minting fee" redeemer — Constr(4, [assetClass, fee, 0, cdpOutRef]).
+// Confirmed vs on-chain borrow 6b8e6d44… (variants 0-3 unconfirmed; only index 4 is built here).
+type TreasuryRedeemer {
+    TRV0,
+    TRV1,
+    TRV2,
+    TRV3,
+    TRCollect {
+        trc_asset: AssetClass,
+        trc_fee: Int,
+        trc_zero: Int,
+        trc_cdp_outref: OutRef,
+    },
+}
+
+// Treasury output datum — Constr(0, [Constr0[treasuryInOutRef], cdpInOutRef]).
+type TreasuryInWrap {
+    tiw_ref: OutRef,
+}
+
+type TreasuryDatum {
+    td_treasury_in: TreasuryInWrap,
+    td_cdp_in: OutRef,
+}
+
+// CDP Redeemer — V3. AdjustCdp is [currentTime, debtAdjustment, collateralAdjustment,
+// priceOracleIdx] (confirmed vs the v3 SDK cdp/types-new.ts). Redeemer index ordering
+// (Close=1, RedeemCdp=2, FreezeCdp=3, MergeCdps=4, MergeAuxiliary=5, Liquidate=6,
+// UpgradeVersion=8) matches the SDK — so a normal close uses CloseCdp(1); the frozen
+// "close" seen on-chain at Constr(6) is actually a Liquidate.
 type CDPRedeemer {
     AdjustCDP {
         a_current_time: Int,
         a_minted_change: Int,
         a_collateral_change: Int,
+        a_price_oracle_idx: OracleIdx,
     },
     CloseCDP {
         c_current_time: Int,
@@ -171,17 +259,98 @@ type CollectorRedeemer {
 type UnitDatum {
 }
 
-// StabilityPoolSnapshot — shared between pool and account datums
-// On-chain: Constr(0, [SPInteger, SPInteger, SPInteger, Int, Int])
-type StabilityPoolSnapshot {
-    snapshot_p: Int,
-    snapshot_d: Int,
-    snapshot_s: Int,
-    snapshot_epoch: Int,
-    snapshot_scale: Int,
+// --- Shared Plutus Address (V3) ---
+// On-chain a Cardano address is Constr(0, [paymentCredential, Maybe<StakingCredential>]).
+// Used for the Stability Pool action output/close addresses (and CDP outputs in Phase 1B).
+// A type cannot be named `Address` (tx3 primitive) — hence `PlutusAddress`.
+
+// Payment / stake credential — Constr(0,[hash]) = PubKey, Constr(1,[hash]) = Script.
+type Cred {
+    CredKey {
+        ck_hash: Bytes,
+    },
+    CredScript {
+        cs_hash: Bytes,
+    },
 }
 
-// Maybe<AccountAction> — used in AccountContent.accRequest
+// StakingCredential = StakingHash(Credential) = Constr(0, [Credential]).
+type StakeRef {
+    StakeKeyHash {
+        skh_cred: Cred,
+    },
+}
+
+// Maybe<StakingCredential> — Just = Constr(0,[ref]), Nothing = Constr(1,[]).
+type MaybeStake {
+    StakeJust {
+        sj_ref: StakeRef,
+    },
+    StakeNone,
+}
+
+type PlutusAddress {
+    pa_payment: Cred,
+    pa_stake: MaybeStake,
+}
+
+// Build a key-payment + key-stake address:
+//   Constr(0, [Constr(0,[pkh]), Constr(0,[Constr(0,[Constr(0,[stake])])])])
+fn owner_address(pkh: Bytes, stake_key: Bytes) -> PlutusAddress {
+    PlutusAddress {
+        pa_payment: Cred::CredKey {
+            ck_hash: pkh,
+        },
+        pa_stake: MaybeStake::StakeJust {
+            sj_ref: StakeRef::StakeKeyHash {
+                skh_cred: Cred::CredKey {
+                    ck_hash: stake_key,
+                },
+            },
+        },
+    }
+}
+
+// --- Stability Pool types (V3) ---
+
+// AssetClass — Constr(0, [policyId, tokenName]); ("","") = ADA. Used as map keys.
+type AssetClass {
+    ac_policy: Bytes,
+    ac_name: Bytes,
+}
+
+// On-chain decimal — Constr(0, [Int]) wrapper (fixed-point bignum).
+type SPDecimal {
+    spd_value: Int,
+}
+
+// V3 Stability Pool snapshot — Constr(0, [SPDecimal, SPDecimal, Int, Int]).
+// Reshaped from VX's 5 flat ints: the two accumulators are now SPDecimal-wrapped,
+// followed by epoch + scale plain ints.
+type SPSnapshot {
+    sps_p: SPDecimal,
+    sps_d: SPDecimal,
+    sps_epoch: Int,
+    sps_scale: Int,
+}
+
+// AccountAction — V3 request types (confirmed vs on-chain CBOR 2026-06-24):
+//   ActCreate = Constr(0,[])
+//   ActAdjust = Constr(1,[amount, PlutusAddress])     (amount>0 deposit, <0 withdraw)
+//   ActClose  = Constr(2,[PlutusAddress, lovelace])   (NOW 2 fields; addr is structured)
+type AccountAction {
+    ActCreate,
+    ActAdjust {
+        act_amount: Int,
+        act_output_addr: PlutusAddress,
+    },
+    ActClose {
+        act_close_addr: PlutusAddress,
+        act_lovelace: Int,
+    },
+}
+
+// Maybe<AccountAction> — Just = Constr(0,[action]), Nothing = Constr(1,[]).
 type MaybeAction {
     JustAction {
         act_value: AccountAction,
@@ -189,24 +358,7 @@ type MaybeAction {
     NothingAction,
 }
 
-// AccountAction — V2 request types for SP operations
-// On-chain: Create=Constr(0,[]), Adjust=Constr(1,[Int,Address]), Close=Constr(2,[Address])
-type AccountAction {
-    ActCreate,
-    ActAdjust {
-        act_amount: Int,
-        act_output_addr: Bytes,
-    },
-    ActClose {
-        act_close_addr: Bytes,
-    },
-}
-
-// Stability Datum — V2 on-chain sum type with 3 variants
-//   Constr(0) = pool state (StabilityPoolContent)
-//   Constr(1) = user account (AccountContent)
-//   Constr(2) = snapshot epoch-to-scale-to-sum
-// V2: pool and account are double-wrapped via Content types
+// Stability Datum — Constr(0) = pool state, Constr(1) = user account.
 type StabilityDatum {
     PoolState {
         sp_content: PoolContent,
@@ -216,35 +368,43 @@ type StabilityDatum {
     },
 }
 
-// V2 StabilityPoolContent — inner record for pool state
+// V3 StabilityPoolContent — Constr(0, [iasset, snapshot, rewards]).
+// `sp_rewards` is the per-collateral-asset reward bookkeeping map; modeled as a
+// placeholder here (no Phase-1A tx constructs a pool — refined for close_cdp in Phase 1B).
 type PoolContent {
     sp_iasset: Bytes,
-    sp_snapshot: StabilityPoolSnapshot,
+    sp_snapshot: SPSnapshot,
+    sp_rewards: List<Tuple<AssetClass, SPDecimal>>,
 }
 
-// V2 AccountContent — inner record for user account
-// Has 4 fields (V1 had 3, V2 added accRequest)
+// V3 AccountContent — Constr(0, [owner, iasset, snapshot, deposits, request, createdAt]).
+// Two NEW fields vs VX: `acc_deposits` (per-asset accrued map, idx 3) and
+// `acc_created_at` POSIXTime (idx 5).
 type AccountContent {
     acc_owner: Bytes,
     acc_iasset: Bytes,
-    acc_snapshot: StabilityPoolSnapshot,
+    acc_snapshot: SPSnapshot,
+    acc_deposits: List<Tuple<AssetClass, SPDecimal>>,
     acc_request: MaybeAction,
+    acc_created_at: Int,
 }
 
-// Stability Pool Redeemer — V2 (request/process pattern)
-// V2 changed from direct actions to request/process batching model
+// Stability Pool Redeemer — V3 constructor meanings (confirmed vs on-chain):
+//   0 = RequestAction(action)  — the only user-facing redeemer
+//   1 = ProcessRequest, pool side   (batcher; not built here)
+//   2 = ProcessRequest, account side (batcher; not built here)
+//   3 = (record epoch / unconfirmed; not built here)
+//   4 = LiquidateCDP [idx]   (used by close_cdp in Phase 1B)
 type StabilityPoolRedeemer {
     SPRequestAction {
         sp_action: AccountAction,
     },
-    SPProcessRequest {
-        sp_request_ref_hash: Bytes,
-        sp_request_ref_idx: Int,
+    SPProcessPool,
+    SPProcessAccount,
+    SPRecordEpoch,
+    SPLiquidateCDP {
+        sp_liq_idx: Int,
     },
-    SPAnnulRequest,         // 2
-    SPLiquidateCDP,         // 3
-    SPRecordSnapshot,       // 4
-    SPUpgradeVersion,       // 5
 }
 
 
@@ -271,12 +431,14 @@ type StakingManagerContent {
 }
 
 // StakingPositionContent — Constr(0, [owner, lockedAmount, positionSnapshot])
-// lockedAmount is Map<PollId, LockedEntry> where LockedEntry models the
-// on-chain tuple (voteAmount, endTime) as Constr(0, [Int, Int]) to work around
-// tx3's lack of tuple types in datums.
+// lockedAmount is an association LIST of (PollId, LockedEntry) pairs — confirmed
+// against raw on-chain CBOR (2026-06-24): empty = `80` (empty array), populated =
+// `[ [pollId, Constr0[vote, end]] ]`. NOT a Plutus Map (`a0`/`a1`). Modeled with
+// tx3 tuples (#341): outer entry = Tuple<Int, LockedEntry> (lowers to a 2-array),
+// inner LockedEntry = record (lowers to Constr0[Int, Int]).
 type StakingPositionContent {
     st_owner: Bytes,
-    st_locked_amount: Map<Int, LockedEntry>,
+    st_locked_amount: List<Tuple<Int, LockedEntry>>,
     st_position_snapshot: RewardSnapshot,
 }
 
@@ -285,8 +447,8 @@ type RewardSnapshot {
     rs_snapshot_ada: Int,
 }
 
-// LockedEntry — on-chain: (voteAmount: Int, endTime: POSIXTime)
-// Modeled as a Constr(0, [Int, Int]) since tx3 doesn't support tuple datums.
+// LockedEntry — on-chain: Constr0[voteAmount: Int, endTime: POSIXTime].
+// A record (Constr0[Int, Int]); used as the value half of each lockedAmount tuple.
 type LockedEntry {
     le_vote_amount: Int,
     le_end_time: Int,
@@ -310,192 +472,73 @@ type StakingRedeemer {
 // --- Transactions ---
 
 // ============================================================
-// 1. CREATE CDP [VX on-chain]
+// CDP TRANSACTIONS (V3)
 // ============================================================
-// Deposit ADA as collateral, mint CDP NFT + iAsset tokens.
+// adjust_cdp_mint / adjust_cdp_burn / close_cdp are implemented below (V3, live-verified
+// against the @indigo-labs/indigo-sdk 0.3.28 source + real on-chain txs): they spend the
+// CDP at the ff0b10bf validator + the Interest Collection validator (2cac220a78), settling
+// accrued interest to the collector. All datum/redeemer values stay < u64.
 //
-// Consumes: Collector UTxO (continuity) + CDPCreator UTxO (auth)
-// Mints: +1 CDP NFT, +N iAsset tokens
-// Outputs: New CDP UTxO at CdpScript, return Collector + CDPCreator,
-//          user gets minted iAssets + change
+// SCOPE NOTE — these cover the SAFE CDP operations (deposit collateral, repay debt, close):
+//   • adjust_cdp_mint models DEPOSIT-collateral (debtAdjustment = 0): OracleVoid, no
+//     treasury. A real BORROW (debtAdjustment > 0) additionally needs the Treasury (a
+//     debt-minting fee) + a price-oracle ref with OracleRefInputIdx{idx} — see create_cdp.
+//   • adjust_cdp_burn models REPAY (no collateral withdrawal): OracleVoid. A collateral
+//     WITHDRAW (collateralAdjustment < 0) needs a price-oracle ref + OracleRefInputIdx{idx}
+//     (the caller passes the oracle's index in the reference_inputs).
+//   • close_cdp is the normal active close (CloseCdp redeemer) — verified vs on-chain tx
+//     37783f745c0d…; it needs no treasury / price oracle / SP.
 //
-// Reference inputs: validator scripts + oracle/config data UTxOs
-tx create_cdp(
-    owner_pkh: Bytes,
-    iasset_name: Bytes,
-    mint_amount: Int,
-    collateral_lovelace: Int,
-    timestamp_ms: Int,
-    interest_accumulator: Int,
-    collector_utxo: UtxoRef,
-    creator_utxo: UtxoRef,
-    oracle_utxo: UtxoRef,
-    iasset_config_utxo: UtxoRef,
-    cdp_manager_utxo: UtxoRef,
-) {
-    locals {
-        cdp_nft: AnyAsset(cdp_nft_policy_id, cdp_nft_name, 1),
-        iasset_tokens: AnyAsset(iasset_policy_id, iasset_name, mint_amount),
-        cdp_creator_token: AnyAsset(cdp_creator_policy_id, cdp_creator_name, 1),
-        credential_policy: iasset_policy_id,
-    }
-
-    validity {
-        since_slot: tip_slot(),
-        until_slot: tip_slot() + 600,
-    }
-
-    // Reference scripts for validators
-    reference cdp_creator_script {
-        ref: cdp_creator_ref,
-    }
-
-    reference collector_script {
-        ref: collector_ref,
-    }
-
-    reference iasset_mint_script {
-        ref: iasset_mint_ref,
-    }
-
-    reference cdp_nft_mint_script {
-        ref: cdp_nft_mint_ref,
-    }
-
-    // Reference inputs for oracle/config data (read-only, not consumed)
-    reference oracle_data {
-        ref: oracle_utxo,
-        datum_is: OracleDatum,
-    }
-
-    reference iasset_config {
-        ref: iasset_config_utxo,
-    }
-
-    reference cdp_manager_config {
-        ref: cdp_manager_utxo,
-    }
-
-    // Spend Collector UTxO (continuity — goes back to CollectorScript)
-    input collector_input {
-        ref: collector_utxo,
-        datum_is: UnitDatum,
-        redeemer: CollectorRedeemer::Collect {},
-    }
-
-    // Spend CDPCreator UTxO (auth token — goes back to CdpCreatorScript)
-    input creator_input {
-        ref: creator_utxo,
-        datum_is: UnitDatum,
-        redeemer: CDPCreatorRedeemer::CreateCDP {
-            owner_pkh: owner_pkh,
-            mint_amount: mint_amount,
-            collateral: collateral_lovelace,
-            timestamp: timestamp_ms,
-        },
-    }
-
-    // User provides ADA for collateral + fees
-    input* source {
-        from: User,
-        min_amount: Ada(collateral_lovelace) + fees,
-    }
-
-    // Mint CDP NFT (1 token identifying the CDP)
-    mint {
-        amount: cdp_nft,
-        redeemer: UnitDatum {},
-    }
-
-    // Mint iAsset tokens (e.g., iUSD)
-    mint {
-        amount: iasset_tokens,
-        redeemer: UnitDatum {},
-    }
-
-    // New CDP UTxO at the CDP user address (script payment + user staking key)
-    // Contains: collateral ADA + CDP NFT + inline CDPDatum (double-wrapped)
-    output cdp_output {
-        to: CdpUserAddr,
-        amount: Ada(collateral_lovelace) + cdp_nft,
-        datum: CDPDatum {
-            cdp_inner: CDPFields {
-                cdp_owner: MaybePkh::JustPkh {
-                    value: owner_pkh,
-                },
-                cdp_iasset: iasset_name,
-                cdp_minted_amount: mint_amount,
-                cdp_interest: CdpInterest::ActiveTracking {
-                    timestamp: timestamp_ms,
-                    accumulator: interest_accumulator,
-                },
-            },
-        },
-    }
-
-    // Return CDPCreator auth token (with inline unit datum)
-    output {
-        to: CdpCreatorScript,
-        amount: creator_input,
-        datum: UnitDatum {},
-    }
-
-    // Return Collector UTxO (with inline unit datum)
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
-    }
-
-    // User gets minted iAssets + change
-    output {
-        to: User,
-        amount: source - Ada(collateral_lovelace) - fees + iasset_tokens,
-    }
-
-    collateral {
-        from: User,
-        min_amount: Ada(5000000),
-    }
-
-    signers {
-        owner_pkh,
-    }
-}
+// create_cdp is NOT implemented — V3 makes it substantially more complex than tx3 can
+// faithfully express (verdict in investigation/v3-findings.md §CDP): it consumes the
+// Treasury, runs withdrawal-purpose ("reward") validators incl. a Pyth price proof, and
+// uses an 11-field CDP-Creator redeemer whose trailing values are 3 output indices + 3
+// reference-input indices that must match the tx's exact ordering — tx3 cannot guarantee
+// that index coupling. (Liquidation/frozen-close paths also co-spend the unencodable SP.)
+// ============================================================
 
 // ============================================================
-// 2. ADJUST CDP [VX on-chain — redeemer has 3 fields: ts, iasset_change, collateral_change]
+// 1. ADJUST CDP — MINT [V3 on-chain — AdjustCDP + Interest Collection]
 // ============================================================
-// Modify an existing CDP: add/remove collateral or mint/burn iAssets.
+// Borrow more iAsset against a CDP and/or add ADA collateral. Every adjust settles the
+// accrued interest: a portion of iAsset is minted to the Interest Collector and the
+// CDP's debt grows accordingly. Confirmed vs on-chain tx 813eef7a… (add-collateral with
+// interest capitalization) — the CDP spend redeemer is AdjustCDP[ts, minted_change,
+// collateral_change, CKAda], co-spent with the Interest Collector (redeemer Collect).
 //
-// Consumes: CDP UTxO (continuity with updated datum) + Collector UTxO
-// Mints: +/- iAsset tokens (depending on adjustment direction)
-// The CDP NFT stays with the CDP UTxO.
-//
-// For adding collateral only (no mint/burn), use adjust_cdp_collateral.
-// For minting more iAssets, use adjust_cdp_mint.
-// For burning iAssets (repaying debt), use adjust_cdp_burn.
-
-// 2a. Adjust CDP — Mint more iAssets (increase debt)
-// On-chain always includes a companion Staking input with Constr(4) redeemer
+// The caller computes the off-chain values (interest accrual, new totals, accumulator)
+// and passes them: `mint_to_user` = iAsset the user receives (new borrow), `interest_fee`
+// = iAsset minted to the collector, `minted_change`/`collateral_change` = the redeemer's
+// requested deltas, `new_minted_total`/`new_collateral` = the updated CDP datum/value.
+/// Adjust a CDP by borrowing more iAsset and/or adding ADA collateral. Settles accrued
+/// interest to the protocol's interest collector and updates the CDP datum.
 tx adjust_cdp_mint(
     owner_pkh: Bytes,
     iasset_name: Bytes,
     cdp_utxo: UtxoRef,
     collector_utxo: UtxoRef,
-    staking_utxo: UtxoRef,
-    additional_mint: Int,
+    minted_change: Int,
+    collateral_change: Int,
+    mint_to_user: Int,
+    interest_fee: Int,
     new_minted_total: Int,
     new_collateral: Int,
     timestamp_ms: Int,
     accumulator: Int,
     oracle_utxo: UtxoRef,
     iasset_config_utxo: UtxoRef,
-    cdp_manager_utxo: UtxoRef,
+    iasset_state_utxo: UtxoRef,
+    price_oracle_idx: OracleIdx,
 ) {
     locals {
         cdp_nft: AnyAsset(cdp_nft_policy_id, cdp_nft_name, 1),
-        new_iassets: AnyAsset(iasset_policy_id, iasset_name, additional_mint),
+        total_mint: AnyAsset(iasset_policy_id, iasset_name, mint_to_user + interest_fee),
+        collector_fee: AnyAsset(iasset_policy_id, iasset_name, interest_fee),
+        user_iasset: AnyAsset(iasset_policy_id, iasset_name, mint_to_user),
+        ada_asset: AssetClass {
+            ac_policy: "",
+            ac_name: "",
+        },
     }
 
     validity {
@@ -507,69 +550,59 @@ tx adjust_cdp_mint(
         ref: cdp_spend_ref,
     }
 
-    reference staking_script {
-        ref: staking_ref,
-    }
-
-    reference oracle_data {
-        ref: oracle_utxo,
-        datum_is: OracleDatum,
-    }
-
-    reference iasset_config {
-        ref: iasset_config_utxo,
-    }
-
-    reference cdp_manager_config {
-        ref: cdp_manager_utxo,
-    }
-
-    reference collector_script {
-        ref: collector_ref,
+    reference interest_collection_script {
+        ref: interest_collection_ref,
     }
 
     reference iasset_mint_script {
         ref: iasset_mint_ref,
     }
 
-    // Spend existing CDP UTxO
+    // Read-only data reference inputs: oracle price, iAsset config, iAsset state.
+    reference oracle_data {
+        ref: oracle_utxo,
+    }
+
+    reference iasset_config {
+        ref: iasset_config_utxo,
+    }
+
+    reference iasset_state {
+        ref: iasset_state_utxo,
+    }
+
+    // Spend the CDP UTxO
     input cdp_input {
         ref: cdp_utxo,
         datum_is: CDPDatum,
         redeemer: CDPRedeemer::AdjustCDP {
             a_current_time: timestamp_ms,
-            a_minted_change: additional_mint,
-            a_collateral_change: 0,
+            a_minted_change: minted_change,
+            a_collateral_change: collateral_change,
+            a_price_oracle_idx: price_oracle_idx,
         },
     }
 
-    // Companion Staking input (required by on-chain validators)
-    input staking_input {
-        ref: staking_utxo,
-        datum_is: UnitDatum,
-        redeemer: StakingRedeemer::StUnstake {},
-    }
-
-    // Spend Collector UTxO (continuity)
+    // Co-spend the Interest Collector UTxO (accumulates the interest fee)
     input collector_input {
         ref: collector_utxo,
         datum_is: UnitDatum,
         redeemer: CollectorRedeemer::Collect {},
     }
 
-    // User provides additional ADA if needed
+    // User provides any added collateral + fees
     input* source {
         from: User,
-        min_amount: fees,
+        min_amount: Ada(collateral_change) + fees,
     }
 
-    // Mint additional iAsset tokens
+    // Mint iAsset: the user's new borrow + the interest fee
     mint {
-        amount: new_iassets,
+        amount: total_mint,
         redeemer: UnitDatum {},
     }
 
-    // Updated CDP UTxO (same address, updated datum)
+    // Updated CDP UTxO
     output cdp_output {
         to: CdpUserAddr,
         amount: Ada(new_collateral) + cdp_nft,
@@ -579,6 +612,7 @@ tx adjust_cdp_mint(
                     value: owner_pkh,
                 },
                 cdp_iasset: iasset_name,
+                cdp_collateral_asset: ada_asset,
                 cdp_minted_amount: new_minted_total,
                 cdp_interest: CdpInterest::ActiveTracking {
                     timestamp: timestamp_ms,
@@ -588,24 +622,17 @@ tx adjust_cdp_mint(
         },
     }
 
-    // Return Staking UTxO (with empty datum)
+    // Return the Interest Collector with the accrued fee added
     output {
-        to: StakingScript,
-        amount: staking_input,
+        to: InterestCollectorScript,
+        amount: collector_input + collector_fee,
         datum: UnitDatum {},
     }
 
-    // Return Collector UTxO (with inline unit datum)
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
-    }
-
-    // User gets newly minted iAssets + change
+    // User gets the newly borrowed iAsset + change
     output {
         to: User,
-        amount: source + cdp_input - Ada(new_collateral) - cdp_nft - fees + new_iassets,
+        amount: source + cdp_input - Ada(new_collateral) - cdp_nft - fees + user_iasset,
     }
 
     collateral {
@@ -618,28 +645,42 @@ tx adjust_cdp_mint(
     }
 }
 
-// 2b. Adjust CDP — Burn iAssets (repay debt, optionally withdraw collateral)
-// On-chain redeemer: Constr(0, [timestamp, -burn_amount, collateral_change])
-// On-chain always includes a companion Staking input with Constr(4) redeemer
+// ============================================================
+// 2. ADJUST CDP — BURN [V3 on-chain — repay debt + settle interest]
+// ============================================================
+// Repay iAsset debt (and optionally withdraw freed ADA collateral). The user provides
+// the full repay amount; part is burned (debt reduction) and part settles the accrued
+// interest to the Interest Collector. Confirmed vs on-chain tx 564ff734… (redeemer
+// AdjustCDP[ts, minted_change, 0, CKAda]; user-provided iAsset split into burn + fee).
+/// Adjust a CDP by repaying iAsset debt, optionally withdrawing freed ADA collateral.
+/// Settles accrued interest to the protocol's interest collector.
 tx adjust_cdp_burn(
     owner_pkh: Bytes,
     iasset_name: Bytes,
     cdp_utxo: UtxoRef,
     collector_utxo: UtxoRef,
-    staking_utxo: UtxoRef,
+    minted_change: Int,
+    collateral_change: Int,
     burn_amount: Int,
+    interest_fee: Int,
     new_minted_total: Int,
     new_collateral: Int,
     timestamp_ms: Int,
     accumulator: Int,
-    collateral_change: Int,
     oracle_utxo: UtxoRef,
     iasset_config_utxo: UtxoRef,
-    cdp_manager_utxo: UtxoRef,
+    iasset_state_utxo: UtxoRef,
+    price_oracle_idx: OracleIdx,
 ) {
     locals {
         cdp_nft: AnyAsset(cdp_nft_policy_id, cdp_nft_name, 1),
-        iassets_to_burn: AnyAsset(iasset_policy_id, iasset_name, burn_amount),
+        iasset_to_burn: AnyAsset(iasset_policy_id, iasset_name, burn_amount),
+        repay_total: AnyAsset(iasset_policy_id, iasset_name, burn_amount + interest_fee),
+        collector_fee: AnyAsset(iasset_policy_id, iasset_name, interest_fee),
+        ada_asset: AssetClass {
+            ac_policy: "",
+            ac_name: "",
+        },
     }
 
     validity {
@@ -651,69 +692,58 @@ tx adjust_cdp_burn(
         ref: cdp_spend_ref,
     }
 
-    reference staking_script {
-        ref: staking_ref,
-    }
-
-    reference oracle_data {
-        ref: oracle_utxo,
-        datum_is: OracleDatum,
-    }
-
-    reference iasset_config {
-        ref: iasset_config_utxo,
-    }
-
-    reference cdp_manager_config {
-        ref: cdp_manager_utxo,
-    }
-
-    reference collector_script {
-        ref: collector_ref,
+    reference interest_collection_script {
+        ref: interest_collection_ref,
     }
 
     reference iasset_mint_script {
         ref: iasset_mint_ref,
     }
 
-    // Spend existing CDP UTxO
+    reference oracle_data {
+        ref: oracle_utxo,
+    }
+
+    reference iasset_config {
+        ref: iasset_config_utxo,
+    }
+
+    reference iasset_state {
+        ref: iasset_state_utxo,
+    }
+
+    // Spend the CDP UTxO
     input cdp_input {
         ref: cdp_utxo,
         datum_is: CDPDatum,
         redeemer: CDPRedeemer::AdjustCDP {
             a_current_time: timestamp_ms,
-            a_minted_change: 0 - burn_amount,
+            a_minted_change: minted_change,
             a_collateral_change: collateral_change,
+            a_price_oracle_idx: price_oracle_idx,
         },
     }
 
-    // Companion Staking input (required by on-chain validators)
-    input staking_input {
-        ref: staking_utxo,
-        datum_is: UnitDatum,
-        redeemer: StakingRedeemer::StUnstake {},
-    }
-
-    // Spend Collector UTxO (continuity)
+    // Co-spend the Interest Collector UTxO
     input collector_input {
         ref: collector_utxo,
         datum_is: UnitDatum,
         redeemer: CollectorRedeemer::Collect {},
     }
 
-    // User provides iAssets to burn + fees
+    // User provides the repay iAsset (burn + interest fee) + fees
     input* source {
         from: User,
-        min_amount: fees + iassets_to_burn,
+        min_amount: fees + repay_total,
     }
 
-    // Burn iAsset tokens (repay debt)
+    // Burn the repaid debt portion
     burn {
-        amount: iassets_to_burn,
+        amount: iasset_to_burn,
         redeemer: UnitDatum {},
     }
 
-    // Updated CDP UTxO (less debt)
+    // Updated CDP UTxO (less debt, possibly less collateral)
     output cdp_output {
         to: CdpUserAddr,
         amount: Ada(new_collateral) + cdp_nft,
@@ -723,6 +753,7 @@ tx adjust_cdp_burn(
                     value: owner_pkh,
                 },
                 cdp_iasset: iasset_name,
+                cdp_collateral_asset: ada_asset,
                 cdp_minted_amount: new_minted_total,
                 cdp_interest: CdpInterest::ActiveTracking {
                     timestamp: timestamp_ms,
@@ -732,24 +763,17 @@ tx adjust_cdp_burn(
         },
     }
 
-    // Return Staking UTxO (with empty datum)
+    // Return the Interest Collector with the accrued fee added
     output {
-        to: StakingScript,
-        amount: staking_input,
+        to: InterestCollectorScript,
+        amount: collector_input + collector_fee,
         datum: UnitDatum {},
     }
 
-    // Return Collector UTxO (with inline unit datum)
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
-    }
-
-    // User gets back freed collateral + change
+    // User gets freed collateral (if withdrawing) + change
     output {
         to: User,
-        amount: source + cdp_input - Ada(new_collateral) - cdp_nft - fees - iassets_to_burn,
+        amount: source + cdp_input - Ada(new_collateral) - cdp_nft - fees - repay_total,
     }
 
     collateral {
@@ -763,36 +787,34 @@ tx adjust_cdp_burn(
 }
 
 // ============================================================
-// 3. CLOSE CDP [VX on-chain — CloseCDP = Constr(1, [ts])]
+// 3. CLOSE CDP [V3 on-chain — CloseCdp; burn all debt + the CDP NFT]
 // ============================================================
-// Close a CDP: burn all outstanding iAsset debt, burn CDP NFT,
-// and recover all ADA collateral.
+// Close an active CDP: burn ALL outstanding iAsset debt + the CDP NFT, settle the
+// accrued interest to the Interest Collector, and return all ADA collateral to the user.
+// Confirmed vs the v3 SDK closeCdp + on-chain tx 37783f745c0d… (CloseCdp redeemer
+// C1[currentTime]). Needs NO treasury, NO price oracle, NO Stability Pool — just the
+// interest oracle + collateral-asset state as DATA refs.
 //
-// Consumes: CDP UTxO + Collector UTxO + StabilityPool UTxO + Staking UTxO
-// Burns: -1 CDP NFT, -N iAsset tokens
-// Returns collateral to user.
+// `burn_amount` = the CDP's full debt (mintedAmt); `interest_fee` = accrued interest to
+// the collector. The user provides burn_amount + interest_fee of the iAsset.
+/// Close a CDP: burn all outstanding iAsset debt and the CDP NFT, settle accrued interest,
+/// and recover all ADA collateral back to the user.
 tx close_cdp(
     owner_pkh: Bytes,
     iasset_name: Bytes,
     cdp_utxo: UtxoRef,
     collector_utxo: UtxoRef,
-    stability_pool_utxo: UtxoRef,
-    staking_utxo: UtxoRef,
     burn_amount: Int,
+    interest_fee: Int,
     timestamp_ms: Int,
-    pool_iasset: Bytes,
-    sp_snapshot_p: Int,
-    sp_snapshot_d: Int,
-    sp_snapshot_s: Int,
-    sp_snapshot_epoch: Int,
-    sp_snapshot_scale: Int,
-    oracle_utxo: UtxoRef,
-    iasset_config_utxo: UtxoRef,
-    cdp_manager_utxo: UtxoRef,
+    collateral_asset_utxo: UtxoRef,
+    interest_oracle_utxo: UtxoRef,
 ) {
     locals {
         cdp_nft: AnyAsset(cdp_nft_policy_id, cdp_nft_name, 1),
-        iassets_to_burn: AnyAsset(iasset_policy_id, iasset_name, burn_amount),
+        debt_to_burn: AnyAsset(iasset_policy_id, iasset_name, burn_amount),
+        repay_total: AnyAsset(iasset_policy_id, iasset_name, burn_amount + interest_fee),
+        collector_fee: AnyAsset(iasset_policy_id, iasset_name, interest_fee),
     }
 
     validity {
@@ -800,46 +822,32 @@ tx close_cdp(
         until_slot: tip_slot() + 600,
     }
 
-    // Reference scripts for all validators involved
     reference cdp_spend_script {
         ref: cdp_spend_ref,
-    }
-
-    reference collector_script {
-        ref: collector_ref,
-    }
-
-    reference iasset_mint_script {
-        ref: iasset_mint_ref,
     }
 
     reference cdp_nft_mint_script {
         ref: cdp_nft_mint_ref,
     }
 
-    reference sp_script {
-        ref: stability_pool_ref,
+    reference iasset_mint_script {
+        ref: iasset_mint_ref,
     }
 
-    reference staking_script {
-        ref: staking_ref,
+    reference interest_collection_script {
+        ref: interest_collection_ref,
     }
 
-    // Reference inputs for oracle/config data
-    reference oracle_data {
-        ref: oracle_utxo,
-        datum_is: OracleDatum,
+    // Read-only DATA refs: collateral-asset state + interest oracle (no price oracle).
+    reference collateral_asset_data {
+        ref: collateral_asset_utxo,
     }
 
-    reference iasset_config {
-        ref: iasset_config_utxo,
+    reference interest_oracle_data {
+        ref: interest_oracle_utxo,
     }
 
-    reference cdp_manager_config {
-        ref: cdp_manager_utxo,
-    }
-
-    // Spend CDP UTxO (close it)
+    // Spend the CDP UTxO (close it)
     input cdp_input {
         ref: cdp_utxo,
         datum_is: CDPDatum,
@@ -848,80 +856,42 @@ tx close_cdp(
         },
     }
 
-    // Spend Collector UTxO (continuity)
+    // Co-spend the Interest Collector UTxO (accrued interest)
     input collector_input {
         ref: collector_utxo,
         datum_is: UnitDatum,
         redeemer: CollectorRedeemer::Collect {},
     }
 
-    // Spend Stability Pool UTxO (continuity)
-    input sp_input {
-        ref: stability_pool_utxo,
-        datum_is: StabilityDatum,
-        redeemer: StabilityPoolRedeemer::SPLiquidateCDP {},
-    }
-
-    // Spend Staking UTxO (continuity)
-    input staking_input {
-        ref: staking_utxo,
-        datum_is: UnitDatum,
-        redeemer: StakingRedeemer::StUnstake {},
-    }
-
-    // User provides iAssets to burn + fees
+    // User provides the full repay (debt + interest) + fees
     input* source {
         from: User,
-        min_amount: fees + iassets_to_burn,
+        min_amount: fees + repay_total,
     }
 
-    // Burn CDP NFT
+    // Burn the CDP NFT
     burn {
         amount: cdp_nft,
         redeemer: UnitDatum {},
     }
 
-    // Burn iAsset debt
+    // Burn all outstanding debt
     burn {
-        amount: iassets_to_burn,
+        amount: debt_to_burn,
         redeemer: UnitDatum {},
     }
 
-    // Return Staking UTxO (updated)
+    // Return the Interest Collector with the accrued fee added
     output {
-        to: StakingScript,
-        amount: staking_input,
-    }
-
-    // Return Collector UTxO
-    output {
-        to: CollectorScript,
-        amount: collector_input,
+        to: InterestCollectorScript,
+        amount: collector_input + collector_fee,
         datum: UnitDatum {},
     }
 
-    // Return Stability Pool UTxO (updated with burned iAssets removed)
-    output sp_output {
-        to: StabilityPoolScript,
-        amount: sp_input - iassets_to_burn,
-        datum: StabilityDatum::PoolState {
-            sp_content: PoolContent {
-                sp_iasset: pool_iasset,
-                sp_snapshot: StabilityPoolSnapshot {
-                    snapshot_p: sp_snapshot_p,
-                    snapshot_d: sp_snapshot_d,
-                    snapshot_s: sp_snapshot_s,
-                    snapshot_epoch: sp_snapshot_epoch,
-                    snapshot_scale: sp_snapshot_scale,
-                },
-            },
-        },
-    }
-
-    // User gets back all collateral + change
+    // User gets back all ADA collateral + iAsset change (the NFT is burned)
     output {
         to: User,
-        amount: source + cdp_input - cdp_nft - fees - iassets_to_burn,
+        amount: source + cdp_input - cdp_nft - fees - repay_total,
     }
 
     collateral {
@@ -935,28 +905,46 @@ tx close_cdp(
 }
 
 // ============================================================
-// 4. CREATE STABILITY POOL ACCOUNT [VX on-chain — request/process pattern]
+// 4. WITHDRAW CDP — remove collateral [V3 on-chain — Pyth price check]
 // ============================================================
-// V2 uses request/process: user submits a RequestAction(Create),
-// then a batcher processes it with ProcessRequest.
-// This tx is the user-facing REQUEST step.
+// Withdraw ADA collateral from a CDP (debtAdjustment = 0, collateralAdjustment < 0).
+// Because the iAsset is Pyth-priced, this runs the Pyth price check via TWO 0-amount
+// withdrawals: the Pyth-state-update validator (redeemer = [pythMessage]) and the
+// per-iAsset feed validator (redeemer = {derivedPrice, unit}). No treasury (no minting
+// of new debt — only the accrued interest is minted to the collector). Structure derived
+// from the v3 SDK adjustCdp/attachOracle + the on-chain borrow 6b8e6d44… reward validators.
 //
-// Consumes: Account UTxO at SP address (continuity — sets accRequest)
-// The account UTxO is created/updated with accRequest = Just(Create)
-tx create_sp_account(
+// The caller supplies the Pyth message + the off-chain-derived price (a, b), the per-iAsset
+// feed validator (its reward account `FeedValidator` + its ref script `feed_val_ref`), and
+// the new datum totals. `collateral_change` is negative; `new_collateral` = old − withdrawn.
+/// Withdraw ADA collateral from a CDP. Runs the Pyth price check (two withdrawal-validator
+/// executions) and settles accrued interest. The caller provides the Pyth price message.
+tx withdraw_cdp(
     owner_pkh: Bytes,
     iasset_name: Bytes,
-    deposit_amount: Int,
+    cdp_utxo: UtxoRef,
     collector_utxo: UtxoRef,
-    sp_utxo: UtxoRef,
-    sp_snapshot_p: Int,
-    sp_snapshot_d: Int,
-    sp_snapshot_s: Int,
-    sp_snapshot_epoch: Int,
-    sp_snapshot_scale: Int,
+    collateral_change: Int,
+    interest_fee: Int,
+    new_minted_total: Int,
+    new_collateral: Int,
+    timestamp_ms: Int,
+    accumulator: Int,
+    pyth_message: Bytes,
+    feed_price_a: Int,
+    feed_price_b: Int,
+    feed_val_ref: UtxoRef,
+    iasset_config_utxo: UtxoRef,
+    collateral_asset_utxo: UtxoRef,
+    interest_oracle_utxo: UtxoRef,
 ) {
     locals {
-        iasset_deposit: AnyAsset(iasset_policy_id, iasset_name, deposit_amount),
+        cdp_nft: AnyAsset(cdp_nft_policy_id, cdp_nft_name, 1),
+        interest_mint: AnyAsset(iasset_policy_id, iasset_name, interest_fee),
+        ada_asset: AssetClass {
+            ac_policy: "",
+            ac_name: "",
+        },
     }
 
     validity {
@@ -964,65 +952,123 @@ tx create_sp_account(
         until_slot: tip_slot() + 600,
     }
 
-    reference sp_script {
-        ref: stability_pool_ref,
+    reference cdp_spend_script {
+        ref: cdp_spend_ref,
     }
 
-    reference collector_script {
-        ref: collector_ref,
+    reference interest_collection_script {
+        ref: interest_collection_ref,
     }
 
-    // Spend Stability Pool UTxO (continuity)
-    input sp_input {
-        ref: sp_utxo,
-        datum_is: StabilityDatum,
-        redeemer: StabilityPoolRedeemer::SPRequestAction {
-            sp_action: AccountAction::ActCreate {},
+    reference iasset_mint_script {
+        ref: iasset_mint_ref,
+    }
+
+    // Pyth State UTxO: the State NFT data ref + the state-withdraw validator ref script.
+    reference pyth_state_ref {
+        ref: pyth_state_withdraw_ref,
+    }
+
+    // Per-iAsset Pyth feed validator ref script.
+    reference feed_ref {
+        ref: feed_val_ref,
+    }
+
+    // iAsset config (the per-iAsset IAssetContent) — required by adjustCdp's reference set.
+    reference iasset_config_data {
+        ref: iasset_config_utxo,
+    }
+
+    reference collateral_asset_data {
+        ref: collateral_asset_utxo,
+    }
+
+    reference interest_oracle_data {
+        ref: interest_oracle_utxo,
+    }
+
+    // Spend the CDP UTxO (remove collateral; price-checked via the Pyth withdrawals below)
+    input cdp_input {
+        ref: cdp_utxo,
+        datum_is: CDPDatum,
+        redeemer: CDPRedeemer::AdjustCDP {
+            a_current_time: timestamp_ms,
+            a_minted_change: 0,
+            a_collateral_change: collateral_change,
+            a_price_oracle_idx: OracleIdx::OracleVoid {},
         },
     }
 
-    // Spend Collector UTxO (continuity)
+    // Co-spend the Interest Collector UTxO
     input collector_input {
         ref: collector_utxo,
         datum_is: UnitDatum,
         redeemer: CollectorRedeemer::Collect {},
     }
 
-    // User provides iAsset tokens + ADA for fees
+    // User provides fees (and collateral for the script execution)
     input* source {
         from: User,
-        min_amount: fees + iasset_deposit,
+        min_amount: fees,
     }
 
-    // Updated Stability Pool UTxO
-    output sp_output {
-        to: StabilityPoolScript,
-        amount: sp_input + iasset_deposit,
-        datum: StabilityDatum::PoolState {
-            sp_content: PoolContent {
-                sp_iasset: iasset_name,
-                sp_snapshot: StabilityPoolSnapshot {
-                    snapshot_p: sp_snapshot_p,
-                    snapshot_d: sp_snapshot_d,
-                    snapshot_s: sp_snapshot_s,
-                    snapshot_epoch: sp_snapshot_epoch,
-                    snapshot_scale: sp_snapshot_scale,
+    // Mint the accrued interest (goes to the collector)
+    mint {
+        amount: interest_mint,
+        redeemer: UnitDatum {},
+    }
+
+    // Pyth price check — withdrawal 1: run the Pyth state update.
+    cardano::withdrawal {
+        from: PythStateWithdraw,
+        amount: 0,
+        redeemer: [pyth_message],
+    }
+
+    // Pyth price check — withdrawal 2: assert the derived price for this iAsset.
+    cardano::withdrawal {
+        from: FeedValidator,
+        amount: 0,
+        redeemer: PythFeedRedeemer {
+            pfr_price: PythPrice {
+                pp_a: feed_price_a,
+                pp_b: feed_price_b,
+            },
+            pfr_aux: UnitDatum {},
+        },
+    }
+
+    // Updated CDP UTxO (less collateral, interest capitalized)
+    output cdp_output {
+        to: CdpUserAddr,
+        amount: Ada(new_collateral) + cdp_nft,
+        datum: CDPDatum {
+            cdp_inner: CDPFields {
+                cdp_owner: MaybePkh::JustPkh {
+                    value: owner_pkh,
+                },
+                cdp_iasset: iasset_name,
+                cdp_collateral_asset: ada_asset,
+                cdp_minted_amount: new_minted_total,
+                cdp_interest: CdpInterest::ActiveTracking {
+                    timestamp: timestamp_ms,
+                    accumulator: accumulator,
                 },
             },
         },
     }
 
-    // Return Collector UTxO
+    // Return the Interest Collector with the accrued interest added
     output {
-        to: CollectorScript,
-        amount: collector_input,
+        to: InterestCollectorScript,
+        amount: collector_input + interest_mint,
         datum: UnitDatum {},
     }
 
-    // User change
+    // User gets back the withdrawn collateral + change
     output {
         to: User,
-        amount: source - fees - iasset_deposit,
+        amount: source + cdp_input - Ada(new_collateral) - cdp_nft - fees,
     }
 
     collateral {
@@ -1036,54 +1082,372 @@ tx create_sp_account(
 }
 
 // ============================================================
-// 5. ADJUST STABILITY POOL ACCOUNT [VX on-chain — RequestAction(Adjust)]
+// 5. BORROW CDP — mint more debt [V3 on-chain — Pyth price check + Treasury fee]
 // ============================================================
-// User requests an adjustment to their SP account deposit.
-// V2: uses RequestAction(Adjust { amount, outputAddress })
-tx adjust_sp_account(
+// Borrow more iAsset against a CDP (debtAdjustment > 0). Adds the Treasury on top of the
+// withdraw machinery: a debt-minting fee is paid to the Treasury (collected via a
+// Constr(4) redeemer, returned with an OutRef-based datum), the accrued interest goes to
+// the Interest Collector, and the rest of the newly minted iAsset goes to the user. The
+// Pyth price is asserted via the two 0-amount withdrawals (same as withdraw_cdp).
+// Confirmed structure vs on-chain borrow 6b8e6d44…. Total minted = debtAdjustment +
+// interest; distribution: treasury_fee → Treasury, interest_fee → Collector,
+// (debtAdjustment − treasury_fee) → user.
+//
+// Because tx3 can't decompose a UtxoRef into a datum, the caller passes the CDP and
+// Treasury input txHash+index separately (used to build the OutRef datum/redeemer).
+/// Borrow more iAsset against a CDP. Pays the debt-minting fee to the treasury, settles
+/// accrued interest, and runs the Pyth price check. The caller provides the Pyth message.
+tx borrow_cdp(
     owner_pkh: Bytes,
     iasset_name: Bytes,
-    deposit_change: Int,
-    output_addr: Bytes,
+    cdp_utxo: UtxoRef,
+    cdp_txhash: Bytes,
+    cdp_idx: Int,
     collector_utxo: UtxoRef,
-    account_utxo: UtxoRef,
-    acc_snapshot_p: Int,
-    acc_snapshot_d: Int,
-    acc_snapshot_s: Int,
-    acc_snapshot_epoch: Int,
-    acc_snapshot_scale: Int,
+    treasury_utxo: UtxoRef,
+    treasury_txhash: Bytes,
+    treasury_idx: Int,
+    debt_adjustment: Int,
+    treasury_fee: Int,
+    interest_fee: Int,
+    new_minted_total: Int,
+    new_collateral: Int,
+    timestamp_ms: Int,
+    accumulator: Int,
+    pyth_message: Bytes,
+    feed_price_a: Int,
+    feed_price_b: Int,
+    feed_val_ref: UtxoRef,
+    iasset_config_utxo: UtxoRef,
+    collateral_asset_utxo: UtxoRef,
+    interest_oracle_utxo: UtxoRef,
 ) {
+    locals {
+        cdp_nft: AnyAsset(cdp_nft_policy_id, cdp_nft_name, 1),
+        total_mint: AnyAsset(iasset_policy_id, iasset_name, debt_adjustment + interest_fee),
+        treasury_fee_asset: AnyAsset(iasset_policy_id, iasset_name, treasury_fee),
+        collector_fee: AnyAsset(iasset_policy_id, iasset_name, interest_fee),
+        user_iasset: AnyAsset(iasset_policy_id, iasset_name, debt_adjustment - treasury_fee),
+        ada_asset: AssetClass {
+            ac_policy: "",
+            ac_name: "",
+        },
+        iasset_class: AssetClass {
+            ac_policy: iasset_policy_id,
+            ac_name: iasset_name,
+        },
+        cdp_outref: OutRef {
+            or_txhash: cdp_txhash,
+            or_idx: cdp_idx,
+        },
+        treasury_in_outref: OutRef {
+            or_txhash: treasury_txhash,
+            or_idx: treasury_idx,
+        },
+    }
 
     validity {
         since_slot: tip_slot(),
         until_slot: tip_slot() + 600,
     }
 
+    reference cdp_spend_script {
+        ref: cdp_spend_ref,
+    }
+
+    reference interest_collection_script {
+        ref: interest_collection_ref,
+    }
+
+    reference iasset_mint_script {
+        ref: iasset_mint_ref,
+    }
+
+    reference treasury_script {
+        ref: treasury_ref,
+    }
+
+    reference pyth_state_ref {
+        ref: pyth_state_withdraw_ref,
+    }
+
+    reference feed_ref {
+        ref: feed_val_ref,
+    }
+
+    // iAsset config (the per-iAsset IAssetContent) — required by adjustCdp's reference set.
+    reference iasset_config_data {
+        ref: iasset_config_utxo,
+    }
+
+    reference collateral_asset_data {
+        ref: collateral_asset_utxo,
+    }
+
+    reference interest_oracle_data {
+        ref: interest_oracle_utxo,
+    }
+
+    // Spend the CDP UTxO (increase debt)
+    input cdp_input {
+        ref: cdp_utxo,
+        datum_is: CDPDatum,
+        redeemer: CDPRedeemer::AdjustCDP {
+            a_current_time: timestamp_ms,
+            a_minted_change: debt_adjustment,
+            a_collateral_change: 0,
+            a_price_oracle_idx: OracleIdx::OracleVoid {},
+        },
+    }
+
+    // Co-spend the Interest Collector
+    input collector_input {
+        ref: collector_utxo,
+        datum_is: UnitDatum,
+        redeemer: CollectorRedeemer::Collect {},
+    }
+
+    // Spend a Treasury UTxO (collect the debt-minting fee)
+    input treasury_input {
+        ref: treasury_utxo,
+        datum_is: UnitDatum,
+        redeemer: TreasuryRedeemer::TRCollect {
+            trc_asset: iasset_class,
+            trc_fee: treasury_fee,
+            trc_zero: 0,
+            trc_cdp_outref: cdp_outref,
+        },
+    }
+
+    // User provides fees (and collateral for the script execution)
+    input* source {
+        from: User,
+        min_amount: fees,
+    }
+
+    // Mint: the user's new debt + the accrued interest
+    mint {
+        amount: total_mint,
+        redeemer: UnitDatum {},
+    }
+
+    // Pyth price check — two 0-amount withdrawals.
+    cardano::withdrawal {
+        from: PythStateWithdraw,
+        amount: 0,
+        redeemer: [pyth_message],
+    }
+
+    cardano::withdrawal {
+        from: FeedValidator,
+        amount: 0,
+        redeemer: PythFeedRedeemer {
+            pfr_price: PythPrice {
+                pp_a: feed_price_a,
+                pp_b: feed_price_b,
+            },
+            pfr_aux: UnitDatum {},
+        },
+    }
+
+    // Updated CDP UTxO (more debt)
+    output cdp_output {
+        to: CdpUserAddr,
+        amount: Ada(new_collateral) + cdp_nft,
+        datum: CDPDatum {
+            cdp_inner: CDPFields {
+                cdp_owner: MaybePkh::JustPkh {
+                    value: owner_pkh,
+                },
+                cdp_iasset: iasset_name,
+                cdp_collateral_asset: ada_asset,
+                cdp_minted_amount: new_minted_total,
+                cdp_interest: CdpInterest::ActiveTracking {
+                    timestamp: timestamp_ms,
+                    accumulator: accumulator,
+                },
+            },
+        },
+    }
+
+    // Return the Interest Collector with the accrued interest
+    output {
+        to: InterestCollectorScript,
+        amount: collector_input + collector_fee,
+        datum: UnitDatum {},
+    }
+
+    // Return the Treasury with the debt-minting fee + the OutRef continuity datum
+    output {
+        to: TreasuryScript,
+        amount: treasury_input + treasury_fee_asset,
+        datum: TreasuryDatum {
+            td_treasury_in: TreasuryInWrap {
+                tiw_ref: treasury_in_outref,
+            },
+            td_cdp_in: cdp_outref,
+        },
+    }
+
+    // User gets the newly borrowed iAsset (debt − treasury fee) + change
+    output {
+        to: User,
+        amount: source + cdp_input - Ada(new_collateral) - cdp_nft - fees + user_iasset,
+    }
+
+    collateral {
+        from: User,
+        min_amount: Ada(5000000),
+    }
+
+    signers {
+        owner_pkh,
+    }
+}
+
+// ============================================================
+// STABILITY POOL TRANSACTIONS (create / adjust / close account)
+// ============================================================
+// ⚠ BLOCKED BY A tx3 LIMITATION — the datum SHAPES below are correct & TIR-verified
+// against V3 on-chain CBOR, but the VALUES cannot be built: the SP snapshot carries
+// 18-decimal fixed-point accumulators that routinely exceed u64::MAX (real on-chain
+// 'd' = 381e18 ≈ 3.8e20; adjust accounts reach 6.5e25). tx3's `IntoData for i128`
+// does `Int::try_from(i128).unwrap()` (pallas `Int` is u64-bounded) and PANICS on any
+// integer > u64::MAX — it never emits CBOR bignums. So these txs resolve (HTTP 502 /
+// panic) for any realistic deposit; only deposits ≤ 18 raw units would fit. They are
+// kept here (structurally faithful to V3) and will become usable if tx3 adds bignum
+// support. Evidence: investigation/v3-findings.md §SP + comparison-report.md.
+// ============================================================
+
+// ============================================================
+// 4. CREATE STABILITY POOL ACCOUNT [V3 on-chain — plain build, no script spend]
+// ============================================================
+// V3: opening an account is a PLAIN BUILD tx — the user locks their iAsset deposit
+// + the account-create fee at the SP address with an Account datum carrying
+// acc_request = Just(ActCreate). NO script is spent, NO token is minted, and the
+// Collector is NOT involved (the batcher mints the SP_ACCOUNT token + updates the
+// pool later, in the process step). Confirmed vs on-chain tx 85b683ed….
+//
+// `account_lovelace` is the ADA to lock in the account (accountCreateFee 5_000_000
+// plus a min-UTxO buffer). The initial snapshot is caller-provided.
+/// [BLOCKED — tx3 cannot encode the >u64 snapshot decimals; errors for realistic
+/// deposits] Open a Stability Pool account: lock iAsset tokens plus the account-create
+/// fee with a pending Create request. A batcher processes it (minting the token) later.
+tx create_sp_account(
+    owner_pkh: Bytes,
+    iasset_name: Bytes,
+    deposit_amount: Int,
+    account_lovelace: Int,
+    snap_p: Int,
+    snap_d: Int,
+    snap_epoch: Int,
+    snap_scale: Int,
+) {
+    locals {
+        iasset_deposit: AnyAsset(iasset_policy_id, iasset_name, deposit_amount),
+        new_snapshot: SPSnapshot {
+            sps_p: SPDecimal {
+                spd_value: snap_p,
+            },
+            sps_d: SPDecimal {
+                spd_value: snap_d,
+            },
+            sps_epoch: snap_epoch,
+            sps_scale: snap_scale,
+        },
+    }
+
+    // User provides the iAsset deposit + the account ADA + fees
+    input* source {
+        from: User,
+        min_amount: Ada(account_lovelace) + fees + iasset_deposit,
+    }
+
+    // New account UTxO at the SP address — pending Create request, empty deposits.
+    output account_output {
+        to: StabilityPoolScript,
+        amount: Ada(account_lovelace) + iasset_deposit,
+        datum: StabilityDatum::Account {
+            acc_content: AccountContent {
+                acc_owner: owner_pkh,
+                acc_iasset: iasset_name,
+                acc_snapshot: new_snapshot,
+                acc_deposits: [],
+                acc_request: MaybeAction::JustAction {
+                    act_value: AccountAction::ActCreate {},
+                },
+                acc_created_at: 0,
+            },
+        },
+    }
+
+    // User change
+    output {
+        to: User,
+        amount: source - Ada(account_lovelace) - fees - iasset_deposit,
+    }
+
+    signers {
+        owner_pkh,
+    }
+}
+
+// ============================================================
+// 5. ADJUST STABILITY POOL ACCOUNT [V3 on-chain — RequestAction(Adjust)]
+// ============================================================
+// User requests an adjustment (deposit or withdraw) to their SP account: spends the
+// account UTxO and rewrites it with acc_request = Just(ActAdjust { amount, addr }).
+// V3 does NOT consume the Collector. `deposit_change` is signed (>0 deposit, <0
+// withdraw). The output address (where the batcher returns funds) is built from the
+// owner's payment + stake key. Confirmed vs on-chain tx e135782e…/83424896….
+//
+// Because tx3 cannot field-access a spent variant input's datum, the caller passes
+// the account's current owner/iasset/snapshot/deposits/created_at to preserve them.
+/// [BLOCKED — tx3 cannot encode the >u64 snapshot decimals it must preserve] Request a
+/// deposit to or withdrawal from a Stability Pool account (a batcher processes it).
+/// Positive amount deposits, negative withdraws.
+tx adjust_sp_account(
+    owner_pkh: Bytes,
+    iasset_name: Bytes,
+    deposit_change: Int,
+    out_pkh: Bytes,
+    out_stake: Bytes,
+    account_utxo: UtxoRef,
+    snap_p: Int,
+    snap_d: Int,
+    snap_epoch: Int,
+    snap_scale: Int,
+    deposits: List<Tuple<AssetClass, SPDecimal>>,
+    created_at: Int,
+) {
+    locals {
+        out_address: owner_address(out_pkh, out_stake),
+        acc_snapshot: SPSnapshot {
+            sps_p: SPDecimal {
+                spd_value: snap_p,
+            },
+            sps_d: SPDecimal {
+                spd_value: snap_d,
+            },
+            sps_epoch: snap_epoch,
+            sps_scale: snap_scale,
+        },
+    }
+
     reference sp_script {
         ref: stability_pool_ref,
     }
 
-    reference collector_script {
-        ref: collector_ref,
-    }
-
-    // Spend Account UTxO (update accRequest field)
+    // Spend Account UTxO (set its pending request to Adjust)
     input account_input {
         ref: account_utxo,
         datum_is: StabilityDatum,
         redeemer: StabilityPoolRedeemer::SPRequestAction {
             sp_action: AccountAction::ActAdjust {
                 act_amount: deposit_change,
-                act_output_addr: output_addr,
+                act_output_addr: out_address,
             },
         },
-    }
-
-    // Spend Collector UTxO (continuity)
-    input collector_input {
-        ref: collector_utxo,
-        datum_is: UnitDatum,
-        redeemer: CollectorRedeemer::Collect {},
     }
 
     // User provides ADA for fees
@@ -1092,7 +1456,7 @@ tx adjust_sp_account(
         min_amount: fees,
     }
 
-    // Updated Account UTxO — set accRequest to Adjust
+    // Updated Account UTxO — same value, acc_request set to Adjust, rest preserved.
     output account_output {
         to: StabilityPoolScript,
         amount: account_input,
@@ -1100,28 +1464,17 @@ tx adjust_sp_account(
             acc_content: AccountContent {
                 acc_owner: owner_pkh,
                 acc_iasset: iasset_name,
-                acc_snapshot: StabilityPoolSnapshot {
-                    snapshot_p: acc_snapshot_p,
-                    snapshot_d: acc_snapshot_d,
-                    snapshot_s: acc_snapshot_s,
-                    snapshot_epoch: acc_snapshot_epoch,
-                    snapshot_scale: acc_snapshot_scale,
-                },
+                acc_snapshot: acc_snapshot,
+                acc_deposits: deposits,
                 acc_request: MaybeAction::JustAction {
                     act_value: AccountAction::ActAdjust {
                         act_amount: deposit_change,
-                        act_output_addr: output_addr,
+                        act_output_addr: out_address,
                     },
                 },
+                acc_created_at: created_at,
             },
         },
-    }
-
-    // Return Collector UTxO
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
     }
 
     // User change
@@ -1141,51 +1494,61 @@ tx adjust_sp_account(
 }
 
 // ============================================================
-// 6. CLOSE STABILITY POOL ACCOUNT [VX on-chain — RequestAction(Close)]
+// 6. CLOSE STABILITY POOL ACCOUNT [V3 on-chain — RequestAction(Close)]
 // ============================================================
-// User requests closure of their SP account.
-// V2: uses RequestAction(Close { outputAddress })
+// User requests closure of their SP account: spends the account UTxO and rewrites it
+// with acc_request = Just(ActClose { addr, lovelace }). The batcher later burns the
+// account token and returns the deposit + rewards to `addr`. V3 ActClose carries TWO
+// fields (a structured address + a lovelace amount). No Collector. Confirmed vs
+// on-chain tx 3d19c13f… (close_lovelace observed = 2_000_000).
+//
+// As with adjust, the caller passes the account's current snapshot/deposits/created_at
+// to preserve them (tx3 can't read a spent variant input's datum fields).
+/// [BLOCKED — tx3 cannot encode the >u64 snapshot decimals it must preserve] Request
+/// closure of a Stability Pool account; a batcher returns the deposit and rewards to
+/// the given address.
 tx close_sp_account(
     owner_pkh: Bytes,
     iasset_name: Bytes,
-    output_addr: Bytes,
-    collector_utxo: UtxoRef,
+    out_pkh: Bytes,
+    out_stake: Bytes,
+    close_lovelace: Int,
     account_utxo: UtxoRef,
-    acc_snapshot_p: Int,
-    acc_snapshot_d: Int,
-    acc_snapshot_s: Int,
-    acc_snapshot_epoch: Int,
-    acc_snapshot_scale: Int,
+    snap_p: Int,
+    snap_d: Int,
+    snap_epoch: Int,
+    snap_scale: Int,
+    deposits: List<Tuple<AssetClass, SPDecimal>>,
+    created_at: Int,
 ) {
-    validity {
-        since_slot: tip_slot(),
-        until_slot: tip_slot() + 600,
+    locals {
+        out_address: owner_address(out_pkh, out_stake),
+        acc_snapshot: SPSnapshot {
+            sps_p: SPDecimal {
+                spd_value: snap_p,
+            },
+            sps_d: SPDecimal {
+                spd_value: snap_d,
+            },
+            sps_epoch: snap_epoch,
+            sps_scale: snap_scale,
+        },
     }
 
     reference sp_script {
         ref: stability_pool_ref,
     }
 
-    reference collector_script {
-        ref: collector_ref,
-    }
-
-    // Spend Account UTxO (set accRequest = Just(Close))
+    // Spend Account UTxO (set its pending request to Close)
     input account_input {
         ref: account_utxo,
         datum_is: StabilityDatum,
         redeemer: StabilityPoolRedeemer::SPRequestAction {
             sp_action: AccountAction::ActClose {
-                act_close_addr: output_addr,
+                act_close_addr: out_address,
+                act_lovelace: close_lovelace,
             },
         },
-    }
-
-    // Spend Collector UTxO (continuity)
-    input collector_input {
-        ref: collector_utxo,
-        datum_is: UnitDatum,
-        redeemer: CollectorRedeemer::Collect {},
     }
 
     // User provides ADA for fees
@@ -1194,7 +1557,7 @@ tx close_sp_account(
         min_amount: fees,
     }
 
-    // Updated Account UTxO — set accRequest to Close
+    // Updated Account UTxO — same value, acc_request set to Close, rest preserved.
     output account_output {
         to: StabilityPoolScript,
         amount: account_input,
@@ -1202,27 +1565,17 @@ tx close_sp_account(
             acc_content: AccountContent {
                 acc_owner: owner_pkh,
                 acc_iasset: iasset_name,
-                acc_snapshot: StabilityPoolSnapshot {
-                    snapshot_p: acc_snapshot_p,
-                    snapshot_d: acc_snapshot_d,
-                    snapshot_s: acc_snapshot_s,
-                    snapshot_epoch: acc_snapshot_epoch,
-                    snapshot_scale: acc_snapshot_scale,
-                },
+                acc_snapshot: acc_snapshot,
+                acc_deposits: deposits,
                 acc_request: MaybeAction::JustAction {
                     act_value: AccountAction::ActClose {
-                        act_close_addr: output_addr,
+                        act_close_addr: out_address,
+                        act_lovelace: close_lovelace,
                     },
                 },
+                acc_created_at: created_at,
             },
         },
-    }
-
-    // Return Collector UTxO
-    output {
-        to: CollectorScript,
-        amount: collector_input,
-        datum: UnitDatum {},
     }
 
     // User change
@@ -1255,6 +1608,8 @@ tx close_sp_account(
 //   - current_snapshot_ada: current managerSnapshot.snapshotAda
 // The new position's positionSnapshot is initialised to the same snapshot,
 // so the user starts earning rewards from now.
+/// Open an INDY staking position: stake INDY tokens and mint a STAKING_POSITION NFT,
+/// increasing the manager's total stake, to start earning ADA fee rewards.
 tx create_staking(
     owner_pkh: Bytes,
     indy_amount: Int,
@@ -1312,14 +1667,14 @@ tx create_staking(
         },
     }
 
-    // New Staking Position — owner, empty lockedAmount map, snapshot = manager's current.
+    // New Staking Position — owner, empty lockedAmount list, snapshot = manager's current.
     output position_output {
         to: StakingScript,
         amount: min_utxo(position_output) + indy_tokens + staking_position_nft,
         datum: StakingDatum::StakingPosition {
             sp_content: StakingPositionContent {
                 st_owner: owner_pkh,
-                st_locked_amount: {},
+                st_locked_amount: [],
                 st_position_snapshot: current_snapshot,
             },
         },
@@ -1342,23 +1697,34 @@ tx create_staking(
 }
 
 // ============================================================
-// 8. ADJUST STAKING POSITION [V1/V2 on-chain — empty datums]
+// 8. ADJUST STAKING POSITION [V3 on-chain — structured datums, Manager co-spent]
 // ============================================================
-// Add or remove INDY from existing staking position.
-// Uses datum field access to propagate lockedAmount and snapshot from input.
+// Add or remove INDY from an existing staking position. V3 co-spends BOTH the
+// Staking Manager (redeemer StUpdateTotalStake) and the Position (redeemer
+// StAdjustStakedAmount{delta}); the manager's totalStake moves by the same delta.
+// Both UTxOs carry structured datums (confirmed vs on-chain CBOR, e.g. tx
+// 21cdb9dc…/c624c13a…). The Collector validator is NOT involved.
 //
-// NOTE: the Collector validator is NOT referenced by the on-chain
-// validateAdjustStakedAmount. See
-// indigo-smart-contracts/src/Indigo/Contracts/Staking/OnChain.hs.
+// `adjust_amount` is signed: > 0 deposits INDY, < 0 withdraws it. The caller must
+// pass the manager's current totalStake + snapshotAda and the position's current
+// lockedAmount (preserved unchanged; empty list `[]` in the common no-vote case).
+/// Add or remove INDY from an existing staking position. Co-updates the staking
+/// manager's total stake. Positive amount deposits INDY, negative withdraws it.
 tx adjust_staking(
     owner_pkh: Bytes,
-    indy_policy_id: Bytes,
     indy_asset_name: Bytes,
     adjust_amount: Int,
+    manager_utxo: UtxoRef,
     position_utxo: UtxoRef,
+    old_total_stake: Int,
+    snapshot_ada: Int,
+    position_locked: List<Tuple<Int, LockedEntry>>,
 ) {
     locals {
         indy_change: AnyAsset(indy_policy_id, indy_asset_name, adjust_amount),
+        current_snapshot: RewardSnapshot {
+            rs_snapshot_ada: snapshot_ada,
+        },
     }
 
     validity {
@@ -1370,10 +1736,17 @@ tx adjust_staking(
         ref: staking_ref,
     }
 
-    // Spend Staking Position UTxO
+    // Spend Staking Manager UTxO (totalStake moves by adjust_amount)
+    input manager_input {
+        ref: manager_utxo,
+        datum_is: StakingDatum,
+        redeemer: StakingRedeemer::StUpdateTotalStake {},
+    }
+
+    // Spend Staking Position UTxO (adjust the staked amount)
     input position_input {
         ref: position_utxo,
-        datum_is: UnitDatum,
+        datum_is: StakingDatum,
         redeemer: StakingRedeemer::StAdjustStakedAmount {
             st_amount: adjust_amount,
         },
@@ -1385,14 +1758,32 @@ tx adjust_staking(
         min_amount: fees + indy_change,
     }
 
-    // Updated Staking Position UTxO (on-chain uses empty datum)
-    output {
+    // Updated Staking Manager — totalStake adjusted, snapshot unchanged.
+    output manager_output {
         to: StakingScript,
-        amount: position_input + indy_change,
-        datum: UnitDatum {},
+        amount: manager_input,
+        datum: StakingDatum::StakingManager {
+            sm_content: StakingManagerContent {
+                st_total_stake: old_total_stake + adjust_amount,
+                st_manager_snapshot: current_snapshot,
+            },
+        },
     }
 
-    // User change
+    // Updated Staking Position — INDY balance changed, datum preserved.
+    output position_output {
+        to: StakingScript,
+        amount: position_input + indy_change,
+        datum: StakingDatum::StakingPosition {
+            sp_content: StakingPositionContent {
+                st_owner: owner_pkh,
+                st_locked_amount: position_locked,
+                st_position_snapshot: current_snapshot,
+            },
+        },
+    }
+
+    // User change (receives withdrawn INDY when adjust_amount < 0)
     output {
         to: User,
         amount: source - fees - indy_change,
@@ -1409,17 +1800,33 @@ tx adjust_staking(
 }
 
 // ============================================================
-// 9. UNSTAKE [V1/V2 on-chain — empty datums]
+// 9. UNSTAKE [V3 on-chain — Manager co-spent, position NFT burned]
 // ============================================================
-// Close staking position entirely and withdraw all INDY + earned ADA rewards.
+// Close a staking position entirely and withdraw all INDY + earned ADA rewards.
+// V3 co-spends the Staking Manager (redeemer StUpdateTotalStake) alongside the
+// Position (redeemer StUnstake), BURNS the position's STAKING_POSITION NFT, and
+// decreases the manager's totalStake by the unstaked amount. The Collector is not
+// involved. Confirmed vs on-chain CBOR (e.g. tx 1a16fe01…/bd2d34a4…).
 //
-// NOTE: the Collector validator is NOT referenced by the on-chain
-// validateUnstake. See
-// indigo-smart-contracts/src/Indigo/Contracts/Staking/OnChain.hs.
+// `unstake_amount` is the position's current staked INDY (used to update the
+// manager's totalStake); the caller reads it from the position UTxO off-chain.
+/// Close a staking position entirely, burning its NFT and withdrawing all staked
+/// INDY plus the accrued ADA rewards back to the user.
 tx unstake(
     owner_pkh: Bytes,
+    manager_utxo: UtxoRef,
     position_utxo: UtxoRef,
+    old_total_stake: Int,
+    snapshot_ada: Int,
+    unstake_amount: Int,
 ) {
+    locals {
+        staking_position_nft: AnyAsset(staking_position_policy_id, staking_position_name, 1),
+        current_snapshot: RewardSnapshot {
+            rs_snapshot_ada: snapshot_ada,
+        },
+    }
+
     validity {
         since_slot: tip_slot(),
         until_slot: tip_slot() + 600,
@@ -1429,10 +1836,21 @@ tx unstake(
         ref: staking_ref,
     }
 
+    reference staking_position_mint_script {
+        ref: staking_position_mint_ref,
+    }
+
+    // Spend Staking Manager UTxO (totalStake decreases by unstake_amount)
+    input manager_input {
+        ref: manager_utxo,
+        datum_is: StakingDatum,
+        redeemer: StakingRedeemer::StUpdateTotalStake {},
+    }
+
     // Spend Staking Position UTxO (consumed entirely)
     input position_input {
         ref: position_utxo,
-        datum_is: UnitDatum,
+        datum_is: StakingDatum,
         redeemer: StakingRedeemer::StUnstake {},
     }
 
@@ -1442,10 +1860,28 @@ tx unstake(
         min_amount: fees,
     }
 
-    // User gets back all INDY + accumulated ADA rewards
+    // Burn the STAKING_POSITION NFT (position is closed)
+    burn {
+        amount: staking_position_nft,
+        redeemer: UnitDatum {},
+    }
+
+    // Updated Staking Manager — totalStake reduced, snapshot unchanged.
+    output manager_output {
+        to: StakingScript,
+        amount: manager_input,
+        datum: StakingDatum::StakingManager {
+            sm_content: StakingManagerContent {
+                st_total_stake: old_total_stake - unstake_amount,
+                st_manager_snapshot: current_snapshot,
+            },
+        },
+    }
+
+    // User gets back all INDY + the position's ADA (the NFT is burned, not returned).
     output {
         to: User,
-        amount: source + position_input - fees,
+        amount: source + position_input - fees - staking_position_nft,
     }
 
     collateral {

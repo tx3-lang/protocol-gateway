@@ -4,9 +4,10 @@
   "user_pkh": "b2d0834973ca3f26aee1f012c1b4f03cc0dcd96a5e299c62beb86237",
   "user_stake_key": "fc246784befd6b6e5b7a84ac1feb0aa9f2d587c8674a0f3cb950f063",
   "project_info_ref": "fc914f41696c345b1a782e53ef6117c90aee1d7561d4442574a1380d40df71c3#0",
-  "share_policy_id": "6e8181d047370418d7ef48f013ffa1bd986388e84cd9c6eec676d98e",
-  "candidate_name": "425f434330315f4e4f",
-  "envelope_amount": 2000000,
-  "share_amount": 10,
-  "batcher_fee_amount": 700000
+  "candidate": { "struct": { "constructor": 0, "fields": [] } },
+  "buy_amount": 10,
+  "batcher_fee_amount": 700000,
+  "admin_fee_percent": 200,
+  "unit_price": 536556,
+  "total_lovelace": 8265560
 }

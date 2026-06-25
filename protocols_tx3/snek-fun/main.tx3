@@ -62,11 +62,6 @@ env {
 
     // Fixed tip paid to the batcher inside the order UTxO.
     executor_fee: Int,        // observed = 1_500_000
-
-    // Fixed escrow ADA for a sell order = executor_fee + min_order_out_ada.
-    // Pre-summed because tx3 has no `*` / `/` and can't add env vars in amount
-    // expressions without forcing callers to recompute.
-    sell_escrow_ada: Int,     // observed = 2_600_000
 }
 
 // --- Types ---
@@ -77,25 +72,48 @@ type AssetId {
     name: Bytes,
 }
 
-// Flat struct chain that serialises to the same nested Constr(0,...) shape
-// Cardano uses for a key-payment + key-stake address. We avoid enum variants
-// here because deeply-nested variant construction trips up the current tx3
-// resolver (error: "invalid hex: Invalid character 'r' at position 3").
-type OrderPayment {
-    pkh: Bytes,
+// Cardano address as it appears inside plutus datums, modelled with proper
+// enums now that self-describing args (#343, tx3 0.23) let nested variant
+// construction resolve. The old workaround was a chain of 4 single-field
+// structs to dodge an arg-encoding bug ("invalid hex: Invalid character 'r'");
+// that bug is fixed, so we can use idiomatic Cardano types.
+//
+// Named `PlutusAddress` (not `Address`) because `Address` is a tx3 primitive.
+//
+//   PlutusAddress = Constr 0 [ payment_credential, optional_stake ]
+//   Credential    = PubKey Constr 0 [hash] | Script Constr 1 [hash]
+//   StakingCred   = Hash   Constr 0 [Credential]            (StakingHash)
+//   OptionalStake = Some   Constr 0 [StakingCred] | None Constr 1 []
+//
+// snek orders always use a key-hash payment + inline key-hash stake, so the
+// shape collapses to:
+//   Constr 0 [ Constr 0 [pkh], Constr 0 [Constr 0 [Constr 0 [stake]]] ]
+// — byte-identical to the old 4-struct chain (verified via TIR diff).
+type Credential {
+    PubKey {
+        hash: Bytes,
+    },
+    Script {
+        hash: Bytes,
+    },
 }
 
-type OrderStakeCred {
-    cred: OrderPayment,
+type StakingCred {
+    Hash {
+        credential: Credential,
+    },
 }
 
-type OrderStakeJust {
-    inner: OrderStakeCred,
+type OptionalStake {
+    Some {
+        stake: StakingCred,
+    },
+    None,
 }
 
-type CardanoAddress {
-    payment: OrderPayment,
-    stake: OrderStakeJust,
+type PlutusAddress {
+    payment: Credential,
+    stake: OptionalStake,
 }
 
 // Order direction marker inside the order datum.
@@ -121,7 +139,7 @@ type OrderAmount {
 //   9 owner_pkh             — duplicate of owner_addr.payment.pkh for indexing.
 type OrderDatum {
     marker: Bytes,
-    owner_addr: CardanoAddress,
+    owner_addr: PlutusAddress,
     input_asset: AssetId,
     output_asset: AssetId,
     order_amount: OrderAmount,
@@ -185,6 +203,24 @@ type MetadataDatum {
     version: Int,
 }
 
+// Caller-facing metadata bundle for launch_token, grouping the former flat
+// ticker/logo/description/launch_type/socials/version params into one
+// structured arg (#337/#338/#343). `asset` and `author` stay separate because
+// they are derived from the token identity and creator passed elsewhere.
+// Wire form (self-describing arg):
+//   {"struct":{"constructor":0,"fields":[
+//       {"bytes":..ticker..},{"bytes":..logo..},{"bytes":..desc..},{"int":..type..},
+//       {"struct":{"constructor":0,"fields":[{"bytes":..},{"bytes":..},{"bytes":..},{"bytes":..}]}},
+//       {"int":..version..}]}}
+type LaunchMetadata {
+    ticker: Bytes,
+    logo_cid: Bytes,
+    description: Bytes,
+    launch_type: Int,
+    socials: Socials,
+    version: Int,
+}
+
 // Redeemer for the pool NFT minting policy.
 //   Mint — Constr(0, [ OutputRef, seed_index ]).
 // (Burn is not implemented — handled by the graduation batcher.)
@@ -205,6 +241,26 @@ type TokenMintRedeemer {
     Mint,
 }
 
+// --- Functions ---
+
+// Build the owner's full plutus address (key-hash payment + inline key-hash
+// stake) recorded in the order datum. Factored out (#311) since buy and sell
+// orders construct the identical structure.
+fn owner_address(pkh: Bytes, stake_key: Bytes) -> PlutusAddress {
+    PlutusAddress {
+        payment: Credential::PubKey {
+            hash: pkh,
+        },
+        stake: OptionalStake::Some {
+            stake: StakingCred::Hash {
+                credential: Credential::PubKey {
+                    hash: stake_key,
+                },
+            },
+        },
+    }
+}
+
 // --- Transactions ---
 
 // 1. place_buy_order
@@ -212,54 +268,43 @@ type TokenMintRedeemer {
 // Create an order UTxO that deposits ADA. The snek.fun batcher will later
 // match it against the bonding curve and mint+return tokens to the user.
 //
-// Escrow value: ada_input + executor_fee + min_order_out_ada.
+// Escrow value (inlined, #339/#340): ada_input + executor_fee + min_order_out_ada.
 // ada_input is the amount the order will actually spend on tokens — callers
-// must compute it from desired slippage. (tx3 has no * / so we can't derive it
-// from an ada-price here.)
+// must compute it from desired slippage (it derives from the exponential bonding
+// curve, which stays off-chain). executor_fee and min_order_out_ada are env
+// constants, so the total no longer needs to be pre-summed by the caller.
 //
 // Params:
-//   order_target_address — bech32 of (order validator script + user stake key).
-//   user_pkh, user_stake_key — plain bytes, repeated inside the owner address
-//                             structure in the datum.
+//   user_pkh, user_stake_key — plain bytes, recorded in the owner address datum.
 //   token_policy, token_name — asset the user wants.
 //   ada_input           — lovelace the batcher may spend to buy tokens.
-//   total_escrow_ada    — ada_input + executor_fee + min_order_out_ada (pre-summed).
 //   deadline_ms         — unix millis; batcher rejects after.
 tx place_buy_order(
     user_pkh: Bytes,
     user_stake_key: Bytes,
     token_policy: Bytes,
     token_name: Bytes,
-    empty_bytes: Bytes,
     ada_input: Int,
-    total_escrow_ada: Int,
     deadline_ms: Int,
 ) {
+    locals {
+        escrow: Ada(ada_input + executor_fee + min_order_out_ada),
+    }
+
     input* source {
         from: User,
-        min_amount: Ada(total_escrow_ada) + fees,
+        min_amount: escrow + fees,
     }
 
     output {
         to: OrderScript,
-        amount: Ada(total_escrow_ada),
+        amount: escrow,
         datum: OrderDatum {
             marker: 0x01,
-            owner_addr: CardanoAddress {
-                payment: OrderPayment {
-                    pkh: user_pkh,
-                },
-                stake: OrderStakeJust {
-                    inner: OrderStakeCred {
-                        cred: OrderPayment {
-                            pkh: user_stake_key,
-                        },
-                    },
-                },
-            },
+            owner_addr: owner_address(user_pkh, user_stake_key),
             input_asset: AssetId {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
             },
             output_asset: AssetId {
                 policy: token_policy,
@@ -279,57 +324,48 @@ tx place_buy_order(
 
     output {
         to: User,
-        amount: source - Ada(total_escrow_ada) - fees,
+        amount: source - escrow - fees,
     }
 }
 
 // 2. place_sell_order
 //
 // Create an order UTxO that deposits `token_amount` of tokens plus the fixed
-// `sell_escrow_ada` that covers the batcher tip and min-output ADA. The
-// batcher returns ADA to the user.
+// ADA escrow (executor_fee + min_order_out_ada) that covers the batcher tip and
+// min-output ADA. The batcher returns ADA to the user.
 tx place_sell_order(
     user_pkh: Bytes,
     user_stake_key: Bytes,
     token_policy: Bytes,
     token_name: Bytes,
-    empty_bytes: Bytes,
     token_amount: Int,
     deadline_ms: Int,
 ) {
     locals {
         sell_tokens: AnyAsset(token_policy, token_name, token_amount),
+        // Fixed ADA escrow = batcher tip + min-output ADA, inlined (#339) from
+        // env constants instead of the old pre-summed `sell_escrow_ada` env var.
+        sell_escrow: Ada(executor_fee + min_order_out_ada),
     }
 
     input* source {
         from: User,
-        min_amount: Ada(sell_escrow_ada) + sell_tokens + fees,
+        min_amount: sell_escrow + sell_tokens + fees,
     }
 
     output {
         to: OrderScript,
-        amount: Ada(sell_escrow_ada) + sell_tokens,
+        amount: sell_escrow + sell_tokens,
         datum: OrderDatum {
             marker: 0x01,
-            owner_addr: CardanoAddress {
-                payment: OrderPayment {
-                    pkh: user_pkh,
-                },
-                stake: OrderStakeJust {
-                    inner: OrderStakeCred {
-                        cred: OrderPayment {
-                            pkh: user_stake_key,
-                        },
-                    },
-                },
-            },
+            owner_addr: owner_address(user_pkh, user_stake_key),
             input_asset: AssetId {
                 policy: token_policy,
                 name: token_name,
             },
             output_asset: AssetId {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
             },
             order_amount: OrderAmount {
                 direction: 1,
@@ -345,7 +381,7 @@ tx place_sell_order(
 
     output {
         to: User,
-        amount: source - Ada(sell_escrow_ada) - sell_tokens - fees,
+        amount: source - sell_escrow - sell_tokens - fees,
     }
 }
 
@@ -401,9 +437,10 @@ tx cancel_order(
 //       the parameterised minting policy (new script per launch).
 //   pool_nft_name — 32-byte hash the pool NFT policy expects, derived from
 //       (seed_outref_tx, seed_outref_idx).
-//   launch_fee_ada, pool_seed_ada, initial_buy_ada, initial_buy_tokens,
-//   curve_tokens_remaining, metadata_min_ada, creator_min_ada,
-//   ada_cap_thresh_for_pool — all pre-summed ADA/token figures (tx3 has no * or /).
+//   launch_fee_ada, pool_seed_ada, initial_buy_tokens, metadata_min_ada,
+//   creator_min_ada, ada_cap_thresh_for_pool — ADA/token figures the caller
+//   sizes off-chain. The curve's remaining supply is derived on-chain as
+//   token_emission - initial_buy_tokens (#340), so it is no longer a param.
 //
 // Parties supplied per call:
 //   user, bondingcurvescript, metadatascript, feeaddress.
@@ -422,40 +459,34 @@ tx launch_token(
     metadata_nft_name: Bytes,
     pool_nft_name: Bytes,
 
-    // Metadata fields.
-    ticker: Bytes,
-    logo_cid: Bytes,
-    description: Bytes,
-    launch_type: Int,
-    twitter: Bytes,
-    discord: Bytes,
-    telegram: Bytes,
-    website: Bytes,
-    metadata_version: Int,
+    // Metadata bundle (ticker, logo, description, launch_type, socials, version)
+    // — grouped into one structured param (#337/#338/#343).
+    meta: LaunchMetadata,
 
-    // Creator identity — duplicated into pool datum + metadata datum.
-    creator_pkh: Bytes,
-    creator_stake_key: Bytes,
+    // Creator's address parts, passed as the PoolAuthor record that lands
+    // directly in the metadata datum (#343).
+    author: PoolAuthor,
+
+    // Pool authority + graduation threshold for this launch.
     pool_witness_pkh: Bytes,
     ada_cap_thresh_for_pool: Int,
 
-    // ADA / token amounts (pre-computed by caller).
+    // ADA / token amounts (caller-sized off-chain).
     launch_fee_ada: Int,
     metadata_min_ada: Int,
     creator_min_ada: Int,
     pool_seed_ada: Int,
     initial_buy_tokens: Int,
-    curve_tokens_remaining: Int,
-
-    // Placeholder for empty-bytes ADA asset id.
-    empty_bytes: Bytes,
 ) {
     locals {
         pool_nft: AnyAsset(pool_nft_policy, pool_nft_name, 1),
         metadata_nft: AnyAsset(token_policy, metadata_nft_name, 1),
         full_supply: AnyAsset(token_policy, token_name, token_emission),
         creator_tokens: AnyAsset(token_policy, token_name, initial_buy_tokens),
-        curve_tokens: AnyAsset(token_policy, token_name, curve_tokens_remaining),
+        // Remaining supply seeded into the bonding curve = total emission minus
+        // the creator's initial dev-buy. Inlined (#340); verified on-chain
+        // (Poppy: 1_000_000_000 - 50_047_569 = 949_952_431).
+        curve_tokens: AnyAsset(token_policy, token_name, token_emission - initial_buy_tokens),
     }
 
     // Pin the seed outref — this is the UTxO the token minting policy was
@@ -504,21 +535,13 @@ tx launch_token(
                 policy: token_policy,
                 name: token_name,
             },
-            ticker: ticker,
-            logo_cid: logo_cid,
-            description: description,
-            launch_type: launch_type,
-            author: PoolAuthor {
-                pkh: creator_pkh,
-                skh: creator_stake_key,
-            },
-            socials: Socials {
-                twitter: twitter,
-                discord: discord,
-                telegram: telegram,
-                website: website,
-            },
-            version: metadata_version,
+            ticker: meta.ticker,
+            logo_cid: meta.logo_cid,
+            description: meta.description,
+            launch_type: meta.launch_type,
+            author: author,
+            socials: meta.socials,
+            version: meta.version,
         },
     }
 
@@ -538,8 +561,8 @@ tx launch_token(
                 name: pool_nft_name,
             },
             quote_asset: AssetId {
-                policy: empty_bytes,
-                name: empty_bytes,
+                policy: "",
+                name: "",
             },
             base_asset: AssetId {
                 policy: token_policy,

@@ -234,24 +234,36 @@ type PredictionRedeemer {
 // The batcher will later consume this UTxO, mint share tokens,
 // and send them to the user.
 //
+// Single tx for both outcomes: `candidate` selects YES (Candidate0) or NO
+// (Candidate1). Merged from the former buy_position_yes / buy_position_no now
+// that tx3 0.23 accepts enum values as parameters (self-describing args, #343).
+//
 // Reads from ProjectInfoDatum (reference input):
 //   outref_id
 //
 // Params:
 //   project_info_ref    — UTxO holding the ProjectInfoDatum for this market
+//   candidate           — market outcome index (Candidate0 = YES, Candidate1 = NO)
 //   buy_amount          — number of shares to buy
 //   batcher_fee_amount  — batcher processing fee (typically 700000 lovelace)
 //   admin_fee_percent   — admin fee in base 10000 (e.g. 200 = 2%, 10 = 0.1% for BODEGA holders)
 //                         NOTE: can differ from ProjectInfoDatum.admin_fee_percent (fee tiers)
-//   unit_price          — LMSR average price per share for this trade (off-chain computed)
-//   total_lovelace      — pre-computed total ADA for position UTxO
-//                         Pre-computed by caller because tx3 lacks * and / operators.
+//   unit_price          — LMSR average price per share, recorded in the datum (off-chain).
+//   total_lovelace      — total ADA locked in the position UTxO, computed off-chain.
 //
-// Split into _yes/_no variants because trix invoke doesn't support enum params.
-tx buy_position_yes(
+// total_lovelace can NOT be inlined. The real deployed formula is
+//   total = LMSR_cost + floor(LMSR_cost*(pi_admin% + pos_admin%)/10000) + batcher + envelope
+// (verified exact vs on-chain tx f57e74aa…, 5637_SPCX NO). Two blockers:
+//   1. LMSR_cost ≠ buy_amount*unit_price — unit_price is a rounded informational average;
+//      the real cost needs ln/exp off-chain (diverges by up to ~100k lovelace in other trades).
+//   2. The admin fee is on LMSR_cost with the ProjectInfoDatum's admin% (unreadable in amount
+//      expressions, quirk #13) — and the contract is closed-source, so the rate combo is only
+//      reverse-engineered. See tx3-limitations-bodega-market.md §1. total_lovelace stays a param.
+tx buy_position(
     user_pkh: Bytes,
     user_stake_key: Bytes,
     project_info_ref: UtxoRef,
+    candidate: CandidateIdx,
     buy_amount: Int,
     batcher_fee_amount: Int,
     admin_fee_percent: Int,
@@ -286,59 +298,7 @@ tx buy_position_yes(
             pos_batcher_fee: batcher_fee_amount,
             pos_admin_fee_percent: admin_fee_percent,
             pos_unit_price: unit_price,
-            pos_candidate: CandidateIdx::Candidate0 {},
-        },
-    }
-
-    output {
-        to: User,
-        amount: source - Ada(total_lovelace) - fees,
-    }
-}
-
-tx buy_position_no(
-    user_pkh: Bytes,
-    user_stake_key: Bytes,
-    project_info_ref: UtxoRef,
-    buy_amount: Int,
-    batcher_fee_amount: Int,
-    admin_fee_percent: Int,
-    unit_price: Int,
-    total_lovelace: Int,
-) {
-    reference project_info {
-        ref: project_info_ref,
-        datum_is: ProjectInfoDatum,
-    }
-
-    validity {
-        until_slot: tip_slot() + 600,
-    }
-
-    metadata {
-        674: "Bodega Market - Buy Position No",
-    }
-
-    input* source {
-        from: User,
-        min_amount: Ada(total_lovelace) + fees,
-    }
-
-    output position {
-        to: PositionScript,
-        amount: Ada(total_lovelace),
-        datum: PositionDatum {
-            outref_id: project_info.outref_id,
-            pos_user_pkh: user_pkh,
-            pos_user_stake_key: OptionPkh::SomePkh {
-                value: user_stake_key,
-            },
-            pos_type: PositionType::BuyPos {},
-            pos_amount: buy_amount,
-            pos_batcher_fee: batcher_fee_amount,
-            pos_admin_fee_percent: admin_fee_percent,
-            pos_unit_price: unit_price,
-            pos_candidate: CandidateIdx::Candidate1 {},
+            pos_candidate: candidate,
         },
     }
 
@@ -355,14 +315,19 @@ tx buy_position_no(
 //
 // No validator interaction needed — anyone can send to a script address.
 //
+// Single tx for both outcomes: `candidate` selects the datum index, while
+// `candidate_name` is the share token's asset name (e.g. "B_CC01_YES" vs
+// "B_CC01_NO"). They stay separate params — the token name can't be derived
+// from the enum (that would need a conditional, which tx3 still lacks, and the
+// ProjectInfoDatum names can't be used in asset expressions — quirk #13).
+//
 // Reads from ProjectInfoDatum (reference input):
 //   outref_id (in datum only — amount expressions can't use reference fields yet)
-//
-// Split into _yes/_no variants because trix invoke doesn't support enum params.
-tx submit_reward_yes(
+tx submit_reward(
     user_pkh: Bytes,
     user_stake_key: Bytes,
     project_info_ref: UtxoRef,
+    candidate: CandidateIdx,
     share_policy_id: Bytes,
     candidate_name: Bytes,
     envelope_amount: Int,
@@ -380,10 +345,6 @@ tx submit_reward_yes(
 
     validity {
         until_slot: tip_slot() + 600,
-    }
-
-    metadata {
-        674: "Bodega Market - Submit Reward Yes",
     }
 
     input* source {
@@ -405,63 +366,7 @@ tx submit_reward_yes(
             pos_batcher_fee: batcher_fee_amount,
             pos_admin_fee_percent: 0,
             pos_unit_price: 0,
-            pos_candidate: CandidateIdx::Candidate0 {},
-        },
-    }
-
-    output {
-        to: User,
-        amount: source - Ada(envelope_amount + batcher_fee_amount) - shares - fees,
-    }
-}
-
-tx submit_reward_no(
-    user_pkh: Bytes,
-    user_stake_key: Bytes,
-    project_info_ref: UtxoRef,
-    share_policy_id: Bytes,
-    candidate_name: Bytes,
-    envelope_amount: Int,
-    share_amount: Int,
-    batcher_fee_amount: Int,
-) {
-    reference project_info {
-        ref: project_info_ref,
-        datum_is: ProjectInfoDatum,
-    }
-
-    locals {
-        shares: AnyAsset(share_policy_id, candidate_name, share_amount),
-    }
-
-    validity {
-        until_slot: tip_slot() + 600,
-    }
-
-    metadata {
-        674: "Bodega Market - Submit Reward No",
-    }
-
-    input* source {
-        from: User,
-        min_amount: Ada(envelope_amount + batcher_fee_amount) + shares + fees,
-    }
-
-    output {
-        to: PositionScript,
-        amount: Ada(envelope_amount + batcher_fee_amount) + shares,
-        datum: PositionDatum {
-            outref_id: project_info.outref_id,
-            pos_user_pkh: user_pkh,
-            pos_user_stake_key: OptionPkh::SomePkh {
-                value: user_stake_key,
-            },
-            pos_type: PositionType::RewardPos {},
-            pos_amount: share_amount,
-            pos_batcher_fee: batcher_fee_amount,
-            pos_admin_fee_percent: 0,
-            pos_unit_price: 0,
-            pos_candidate: CandidateIdx::Candidate1 {},
+            pos_candidate: candidate,
         },
     }
 
@@ -479,14 +384,16 @@ tx submit_reward_no(
 // On-chain, the Bodega dApp calls this "Sell Position".
 // pos_unit_price records the AMM state at sell time.
 //
+// Single tx for both outcomes: `candidate` selects YES (Candidate0) or NO
+// (Candidate1). Merged from the former sell_position_yes / sell_position_no (#343).
+//
 // Reads from ProjectInfoDatum (reference input):
 //   outref_id (in datum only — amount expressions can't use reference fields yet)
-//
-// Split into _yes/_no variants because trix invoke doesn't support enum params.
-tx sell_position_yes(
+tx sell_position(
     user_pkh: Bytes,
     user_stake_key: Bytes,
     project_info_ref: UtxoRef,
+    candidate: CandidateIdx,
     envelope_amount: Int,
     share_amount: Int,
     batcher_fee_amount: Int,
@@ -521,59 +428,7 @@ tx sell_position_yes(
             pos_batcher_fee: batcher_fee_amount,
             pos_admin_fee_percent: admin_fee_percent,
             pos_unit_price: unit_price,
-            pos_candidate: CandidateIdx::Candidate0 {},
-        },
-    }
-
-    output {
-        to: User,
-        amount: source - Ada(envelope_amount + batcher_fee_amount) - fees,
-    }
-}
-
-tx sell_position_no(
-    user_pkh: Bytes,
-    user_stake_key: Bytes,
-    project_info_ref: UtxoRef,
-    envelope_amount: Int,
-    share_amount: Int,
-    batcher_fee_amount: Int,
-    admin_fee_percent: Int,
-    unit_price: Int,
-) {
-    reference project_info {
-        ref: project_info_ref,
-        datum_is: ProjectInfoDatum,
-    }
-
-    validity {
-        until_slot: tip_slot() + 600,
-    }
-
-    metadata {
-        674: "Bodega Market - Sell Position No",
-    }
-
-    input* source {
-        from: User,
-        min_amount: Ada(envelope_amount + batcher_fee_amount) + fees,
-    }
-
-    output {
-        to: PositionScript,
-        amount: Ada(envelope_amount + batcher_fee_amount),
-        datum: PositionDatum {
-            outref_id: project_info.outref_id,
-            pos_user_pkh: user_pkh,
-            pos_user_stake_key: OptionPkh::SomePkh {
-                value: user_stake_key,
-            },
-            pos_type: PositionType::RefundPos {},
-            pos_amount: share_amount,
-            pos_batcher_fee: batcher_fee_amount,
-            pos_admin_fee_percent: admin_fee_percent,
-            pos_unit_price: unit_price,
-            pos_candidate: CandidateIdx::Candidate1 {},
+            pos_candidate: candidate,
         },
     }
 

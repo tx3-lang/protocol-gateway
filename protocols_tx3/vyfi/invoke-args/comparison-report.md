@@ -20,6 +20,7 @@
 | swap_b_to_a | OK | Datum: Constr(0, [Bytes(56), Constr(4, [min_out])]) |
 | add_liquidity | OK | Datum: Constr(0, [Bytes(56), Constr(0, [desired_lp])]) |
 | remove_liquidity | OK | Datum: Constr(0, [Bytes(56), Constr(1, [Constr(0, [min_ada, min_token])])]) |
+| cancel | OK | Spends order @ order script, redeemer Constr(1, []), PlutusV1 inline witness, validity [since, until] |
 
 ## Test Wallet
 
@@ -130,6 +131,63 @@ Constr(0, [
 
 Result: **100% structural match**
 
+### cancel vs on-chain (34a41f7f, ADA/SNEK)
+
+The only tx that executes a script. Verified field-by-field against the real cancel
+tx `34a41f7f12bbb280a476d52f3802aabdd8575cfe96c277c3d7b866302a12d3b0`:
+
+| Element | On-chain (34a41f7f) | Generated (cancel) |
+|---------|---------------------|--------------------|
+| Order input | `dbae1392…#0` @ order script (3.9M ADA + LP), datum = RemoveLiquidity order | `order_utxo` @ order script, `datum_is: OrderDatum` |
+| Redeemer | `Constr(1, [])` (spend purpose) | `OrderRedeemer::Cancel {}` → `Struct{constructor:1, fields:[]}` |
+| Script | PlutusV1 **inline witness** (2703-byte bytecode), **no** reference script | `cardano::plutus_witness { version: 1, script: order_script }` |
+| Script hash | `2c0f418d…` (order address) | blake2b-224(`0x01` ‖ `order_script`) = `2c0f418d…` ✓ (verified) |
+| Output 0 | order value back to user (3.9M ADA + 2,068,746 LP) | `amount: order_input` → user |
+| Output 1 | change = funding input − fee (334,621,700 + SNEK) | `amount: source - fees` → user |
+| Collateral | 5 ADA from the user, with return | `collateral { from: User }` |
+| Validity | `invalid_before: 184163622`, `invalid_after: 184174422` (~3h window) | `validity { since_slot, until_slot }` |
+
+Result: **structural match**. The order validator's Cancel branch needs the owner's
+signature, satisfied by spending the user's own funding input (its payment cred =
+the first 28 bytes of the order datum's `user_creds`). Both validity bounds are set
+(wallet TTL window); the caller passes `since_slot`/`until_slot` from the live tip.
+
+**Live-resolved (2026-06-23, `trix invoke --skip-submit --profile mainnet`):** cancel
+resolves end-to-end (tx hash `c00b2182…`). Decoded CBOR matches the design exactly:
+2 inputs (order `b05f582d…#0` + user funding), out0 = the order's value back to the
+user (3_900_000 lovelace + 1_230_830 SNEK, byte-identical to the order UTxO), out1 =
+change, `invalid_before = 184163622` (since_slot) / `ttl = 184174422` (until_slot),
+`script_data_hash` present, 1 collateral, witness `plutus_v1_script` = the 2703-byte
+`order_script` (hash `2c0f418d…` ✓), redeemer for spend input 0 = `d87a80` =
+`Constr(1, [])` = Cancel.
+
+**4 of 5 txs live-resolve** (`--skip-submit`):
+- `cancel` (hash `c00b2182…`), `swap_a_to_b` (ADA-only, hash `359fdbd4…`).
+- `swap_b_to_a` (hash `8b9e9b08…`) — `input*` combined **3** wallet UTxOs; order out =
+  3_900_000 lovelace + 200_000 SNEK, datum `Constr(0,[user_creds, Constr(4,[300000000])])`.
+  Confirms the `order_min_ada + process_fee` fold **live**: 2_000_000 + 1_900_000 = 3.9M.
+- `add_liquidity` (hash `5260bf2e…`) — `input*` combined **2** UTxOs; order out =
+  501_900_000 lovelace (500M + process_fee) + 1_000_000 SNEK, datum `Constr(0,[…,
+  Constr(0,[100000])])`.
+- `remove_liquidity` (hash `9b0a133c…`) — **datum confirmed value-equivalent to a REAL
+  on-chain remove-liq order.** The test wallet holds no ADA/SNEK LP token, so it was
+  resolved with the **real datum values** of the order that `34a41f7f` cancelled
+  (`dbae1392#0`: `user_creds 83aa2e52…`, `min_out_ada 128732965`, `min_out_token 76833`)
+  and SNEK as the LP placeholder (`input*` combined 3 UTxOs; the LP token lives in the
+  output *value*, not the datum, so the datum is unaffected). Generated inline datum:
+  `d87982…83aa2e52…d87a81d879821a07ac4f251a00012c21` = `Constr(0,[creds, Constr(1,
+  [Constr(0,[128732965, 76833])])])` — the **same Plutus value** as the on-chain order
+  (datum_hash `df44a16a` = the *indefinite*-array encoding; tx3 emits *definite* arrays,
+  hash `0f841fd8`). Only diff = the definite-vs-indefinite CBOR artifact (value-preserving,
+  affects every tx3 datum). Order ADA = 3_900_000 (order_min_ada + process_fee). **All 5
+  txs now confirmed** (4 live-resolved end-to-end + remove_liquidity datum-matched).
+
+**Script-bytes note:** tx3 hashes the `script:` value directly as `H(tag ‖ bytes)`,
+so `order_script` must be the **doubly-wrapped** CBOR (the bytes Koios returns as
+`script_info.bytes` / `tx_info.plutus_contracts[].bytecode`, starting `590a8c…` for
+ADA/SNEK), **not** the unwrapped flat program. Confirmed: `H(0x01 ‖ full bytecode)`
+= the order script hash, whereas stripping the `590a8c` header does not.
+
 ## Expected Differences
 
 | Difference | Reason |
@@ -151,11 +209,30 @@ Result: **100% structural match**
 - `orderscript`: the pool's order address
 - Token policy, name (for swap_b_to_a, add_liquidity)
 - LP policy, name (for remove_liquidity)
+- `order_script`: the pool's order validator CBOR (cancel only — PlutusV1,
+  doubly-wrapped, from Koios `script_info` / the VyFi API)
 
 ### Per-call (user-specific)
 - `user`: user wallet address
 - `user_creds`: payment_cred || stake_cred (56 bytes hex)
 - Swap/deposit amounts, min receive values
+- `order_min_ada` (swap_b_to_a, remove_liquidity): min-UTxO ADA buffer; the tx
+  adds `process_fee` from env
+
+### `order_min_ada` — why it is NOT inlined as `min_utxo(output) + process_fee`
+
+The TX3-0.23 plan proposed inlining the token-order ADA as
+`min_utxo(output) + process_fee`. **Rejected** (same trap as bodega `total_lovelace`
+and aquarium `payment_token_qty`): across 21 real token-deposit orders (MIN, SNEK,
+HOSKY, FREN, SICK pools) the ADA above `process_fee` is **mostly 2,000,000 but
+varies** — 1,050,000 / 2,000,340 / 2,100,000 also seen. It is a frontend/wallet
+choice, not the protocol's computed `min_utxo` (which for these outputs resolves to
+~1.3M, diverging from the dominant 3.9M). So `order_min_ada` stays a caller param.
+What *was* applied: fold the env `process_fee` into the order amount
+(`Ada(order_min_ada + process_fee)`), making token orders symmetric with the
+ADA-side orders (which already add `process_fee`) and dropping the need for the
+caller to pre-sum the fee. Default `order_min_ada = 2_000_000` → 3.9M, the on-chain
+mode.
 
 ## Pool Data Source
 
@@ -184,4 +261,32 @@ trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/add_liq
 
 # Remove liquidity
 trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/remove_liquidity.json
+
+# Cancel an order (the only script-executing tx; set since/until to the live tip,
+# and order_utxo/order_script to an order you own + its pool's validator)
+trix invoke --skip-submit --profile mainnet --args-json-path invoke-args/cancel.json
 ```
+
+### Resolving token-deposit orders (`input*` + wallet holdings)
+
+All order txs use `input* source` (it was `input source` initially): the resolver may
+combine **multiple** wallet UTxOs to gather the deposit tokens + ADA. With a single
+input the resolver needs one UTxO holding *both* the tokens and the ADA, which fails
+on a fragmented wallet (`input not resolved: source`, `support_many: false`).
+
+To **live-resolve** a token-deposit order the wallet must actually hold the asset:
+- `swap_b_to_a` needs ≥ `token_amount` of the token (e.g. 200_000 SNEK),
+- `add_liquidity` needs ≥ `token_amount` of the token (e.g. 1_000_000 SNEK),
+- `remove_liquidity` needs ≥ `lp_amount` of that pool's LP token.
+
+`swap_a_to_b` (ADA-only) and `cancel` (tokens come from the order input) resolve
+without holding any pool token. If a token-deposit order still fails after `input*`,
+the wallet doesn't hold enough of that asset — lower the amount in the invoke-args to
+match the balance, or treat it as TIR-verified only.
+
+> Headless verification (no TTY): `trix inspect tir --tx <name> --pretty --profile
+> mainnet`. cancel's TIR pins redeemer `Constr(1,[])`, `plutus_witness` version 1 +
+> `order_script` param, `validity {since,until}`, and outputs `order_input` / `source
+> - fees`. swap_b_to_a & remove_liquidity differ from their pre-edit baseline ONLY by
+> `order_ada` → `Add(order_min_ada, process_fee)`; swap_a_to_b & add_liquidity are
+> byte-identical.

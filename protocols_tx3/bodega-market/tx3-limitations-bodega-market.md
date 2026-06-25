@@ -6,21 +6,55 @@ Discovered with trix 0.21.1 (2026-03-13). Updated 2026-04-14 with tx3c v0.17.0 /
 
 ## Active Limitations (impact on production use)
 
-### 1. No Multiplication or Division Operators
+### 1. Position total needs the off-chain LMSR cost — NOT inlinable with `*`/`/`
 
-The grammar only supports `+` and `-` for data expressions (`data_infix = _{ data_add | data_sub }`). Bodega Market requires arithmetic for fee and payment calculations:
+> **Update 2026-06-22 (tx3 0.23 / trix 0.26):** `*` and `/` now exist (#339/#340, 0.22). We
+> investigated inlining `total_lovelace`, reverse-engineered the **real** deployed formula
+> against on-chain txs + the local cost analysis, and decided to **keep `total_lovelace` as a
+> caller param.** Reasoning below.
+
+**The real deployed formula** (the mainnet contract is LMSR-based and is **not** the
+open-source GitHub v2 — they differ; see `bodega-market-costs.md` §1, verified vs 5 trades):
 
 ```
-payment = buy_amount * unit_price
-admin_fee = buy_amount * admin_fee_percent * 1_000_000 / 10_000
-total = payment + admin_fee + batcher_fee + envelope_amount
+total = LMSR_cost
+      + floor( LMSR_cost * (pi_admin_fee_percent + pos_admin_fee_percent) / 10_000 )
+      + batcher_fee + envelope_amount
 ```
 
-**Impact:** Forces `total_lovelace` to be pre-computed by the API caller. This leaks protocol internals (fee formula, AMM pricing) to the caller layer. Same applies to `unit_price` (LMSR price per share).
+Verified **exact** on tx `f57e74aa…` (market 5637_SPCX, NO):
+`147 149 730 + floor(147 149 730 × 400 / 10 000 = 5 885 989) + 700 000 + 2 000 000 =
+155 735 719` ✓. (Both admin percents were 200 → combined 4 %, matching the docs' "~4 % of
+volume". The earlier wrong inline used `buy_amount × admin% × 1e6/1e4` = 6 780 000 instead of
+5 885 989 → that was the +894 011 error.)
 
-**Workaround applied:** Added `total_lovelace` and `unit_price` as tx parameters. The caller computes them off-chain.
+**Two walls to inlining it:**
 
-**Affected txs:** `buy_position_yes`, `buy_position_no`, `sell_position_yes`, `sell_position_no`
+1. **`LMSR_cost ≠ buy_amount × unit_price`.** The stored `unit_price` is a rounded,
+   informational average. The amount that actually enters the pool is the exact LMSR cost
+   `C(q+Δ) − C(q)`, `C = b · ln Σ exp(qᵢ/b)`. They diverge — e.g. trade *197 NO*:
+   `amount × unit_price` = 97 245 307 but real LMSR cost = 97 142 992 (off by **102 315**).
+   So the cost **must** come from the off-chain ln/exp engine; it can't be reconstructed in-tx.
+
+2. **Even passing `LMSR_cost` as a param and inlining the rest is not worth it:**
+   - No compute saving — the caller runs ln/exp once regardless and already has the total.
+   - No fewer params — the admin fee needs `pi_admin_fee_percent` (ProjectInfoDatum), which
+     **can't be read from the reference datum in an amount expression** (limitation #6) → it
+     becomes an extra param. `total_lovelace` (1 param) → `lmsr_cost` + `pi_admin%` (≥2).
+   - Risk — the combined-rate single-floor formula is verified on one config (both = 200);
+     BODEGA-holder discounts (`pos_admin% = 10`) are unverified, and a 1-lovelace error makes
+     the position **unprocessable** by the batcher. The deployed contract is closed-source, so
+     the formula can't be confirmed from source — only reverse-engineered.
+
+**Workaround (kept):** `total_lovelace` **and** `unit_price` remain tx parameters, both
+computed off-chain by the caller's LMSR engine.
+
+**Affected txs:** `buy_position` (and the per-trade price in `sell_position`).
+
+**Lesson:** `*`/`/` only help when the polynomial is the *actual, verifiable* on-chain math.
+Here it isn't (closed-source LMSR contract; the cost itself needs ln/exp). The old "verified
+on-chain" comment was circular (back-computed from the same formula). Always validate against
+a **real** tx — that is what caught both the wrong admin formula and the cost approximation.
 
 ### 2. No Dynamic-Length Input/Output Lists (Batch Patterns)
 
@@ -113,6 +147,59 @@ locals {
 
 ---
 
+### 7. Nested / list metadata cannot be emitted — `674` block dropped
+
+> **Re-verified 2026-06-25 against the most recent on-chain txs (trix 0.26.2 / tx3-cardano 0.23.0).**
+> This is the global quirk #14, confirmed still open in 0.23 — and it is **the single biggest gap**
+> between our user txs and the real ones.
+
+**On-chain reality:** every real Bodega buy / sell / reward tx carries a CIP-20 `674` block, and
+batcher txs additionally carry a CIP-25 `721` block. The `674` block is **not cosmetic** — it is
+the trade record the Bodega indexer / UI reads. Real shape (buy `9ae49a2a…`, market 262F):
+
+```jsonc
+674: {
+  "msg":  ["Bodega Market - Buy Position", "FIFA WC | France or Spain wins the World Cup", "Yes"],
+  "data": { "id": "262F_FIFA_WC_FRANCE_", "option": 0, "side": "Yes", "action": "Buy Position",
+            "address": ["addr1q822…", "00g5r3mg…"], "time": 1782399613363,
+            "amount": 226, "asset": "", "price": 429935 },
+  "hash": "7bb9c58a8086d1694386a541027bfcef113b846dd95428c19bf82b7f94d86a61"
+}
+```
+
+`msg` is a `List<String>` and `data` is a nested `Map`.
+
+**Why tx3 can't emit it (source-confirmed, not just observed):**
+
+- `tx3-cardano-0.23.0/src/coercion.rs::expr_into_metadatum` matches **only**
+  `tir::Expression::{Number, String, Bytes}` → everything else falls through to
+  `CoerceError(_, "Metadatum")`. There is **no `Map` or `List`/`Array` arm**, even though pallas's
+  `Metadatum` enum has `Map` and `Array` variants.
+- `tx3-cardano-0.23.0/src/compile/mod.rs::compile_auxiliary_data` calls `expr_into_metadatum`
+  directly on each `674` value, so a `Map`/`List` value errors out the whole resolution.
+- `trix check` and `trix build` **both pass** — the grammar accepts the nested literal and the
+  TIR even contains `{"Map": …}` / `{"List": …}` nodes (verified via `trix inspect tir`). The
+  failure is at **resolve** time, which is why a build-only check is misleading here.
+- Even a single top-level `674 => "string"` would technically resolve, but it does **not** match
+  the real shape (a `Map`) and is non-standard CIP-20, so it was not added.
+
+**Decision (2026-06-25):** leave the `674`/`721` metadata **off** and **escalate the tx3 fix** (see
+below). The position datum is value-correct and the on-chain validator/batcher ignore metadata, so
+funds and shares flow correctly; the only loss is byte-identity and the Bodega-indexer trade record.
+
+**Escalation — tx3 feature request:** add `Map` and `Array` arms to
+`tx3-cardano/src/coercion.rs::expr_into_metadatum` (recursively coercing `tir::Expression::Struct`/
+record → `Metadatum::Map` and `tir::Expression::List`/`Tuple` → `Metadatum::Array`), so the existing
+grammar + TIR support (which already lower nested literals) reaches the resolver. With that one
+function fixed, `buy_position` / `sell_position` / `submit_reward` could emit the exact `674` block
+and become byte-identical to the Bodega-frontend txs. Tracked in `protocols_tx3/TX3-0.23-UPGRADE.md`
+and global memory quirk #14.
+
+**Affected txs:** all user-facing txs (`buy_position`, `sell_position`, `submit_reward`); also blocks
+implementing batcher txs' `721` NFT metadata.
+
+---
+
 ## ~~Solved~~ Limitations (fixed in recent tx3c releases)
 
 ### ~~Reference Inputs Cannot Read Datum Values~~ — SOLVED in tx3c v0.17.0
@@ -147,15 +234,17 @@ Real on-chain txs include explicit `collateral_return` (field 16) and `total_col
 
 | # | Status | Description | Workaround | Impact |
 |---|--------|-------------|------------|--------|
-| 1 | Active | No `*` / `/` operators | Caller pre-computes `total_lovelace` | `total_lovelace` + `unit_price` as params per buy/sell tx |
+| 1 | Active (permanent) | Position total/price need `ln`/`exp` (LMSR) — `*`/`/` (0.22) are NOT enough; formula over-counts the real output (proven vs tx `f57e74aa…`, +894 011) | Caller runs the off-chain LMSR engine | `total_lovelace` + `unit_price` stay params per buy/sell tx |
 | 2 | Active | No dynamic input/output lists | None — batcher txs not implementable | 5 txs blocked (all batcher/admin) |
 | 3 | Active | No tuple types | N/A (deployed contract avoids tuples) | Low |
-| 4 | Active | Enums not passable as params | Duplicate txs into `_yes`/`_no` variants | 3 txs -> 6 variants |
+| 4 | ~~Active~~ → **Solved (#343, 0.23)** | ~~Enums not passable as params~~ | `candidate: CandidateIdx` param (arg `{"struct":{"constructor":N,"fields":[]}}`) | 6 variants → **3 txs**; needs a resolver ≥0.23 |
 | 5 | Active | No conditional logic | Not implemented (no token markets active) | Would need `_ada`/`_token` variants for buy/sell |
 | 6 | Active | Ref datum fields only in datum construction | Keep params for amount-used fields | 4 extra params across submit_reward + sell_position |
+| 7 | Active (escalated) | Nested/list metadata not coercible (`coercion.rs::expr_into_metadatum` = primitives only; quirk #14, re-verified 0.23) | Drop the `674`/`721` block; fix tx3 to emit it | All user txs lack the CIP-20 trade record; not byte-identical to real txs |
 | - | ~~Solved~~ | ~~Reference inputs can't read datums~~ | Fixed in tx3c v0.17.0 (#318) | `outref_id` now read from reference |
 | - | ~~Solved~~ | ~~Record field name shadowing panic~~ | Fixed in tx3c v0.17.0 (#316) | No longer need to rename params |
 
 **Transactions blocked by tx3 limitations:** 5 out of 11 total (all batcher/admin operations).
-**Transactions requiring workaround duplication:** 3 -> 6 (enum variant split).
+**Enum variant duplication:** RESOLVED — the 6 `_yes`/`_no` variants are now **3 txs** with a
+`candidate: CandidateIdx` param (#343, tx3 0.23; requires a resolver ≥0.23 to invoke).
 **Pending if token-payment markets appear:** `buy_position` and `sell_position` would need `_ada`/`_token` variants.

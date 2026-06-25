@@ -1,0 +1,1323 @@
+{
+  "pythConfig": {
+    "pythStateAssetClass": [
+      {
+        "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+      },
+      {
+        "unTokenName": "Pyth State"
+      }
+    ],
+    "pythFeeds": {
+      "iUSD/.": {
+        "params": {
+          "config": {
+            "tag": "inverse",
+            "val": {
+              "tag": "value",
+              "val": {
+                "priceFeedId": 16
+              }
+            }
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "4cb907af98c1ed5ee9f251691a0ec909f2a26b583ed271f2a88a55cb",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "bb8d6bdd86cbd523875e05e0f6d1f02e31e8d2fb6ba419f110a519ec39b44c82",
+            "index": 0
+          }
+        }
+      },
+      "iBTC/.": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 1
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 16
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "77f65e4d14ed8106e8a97814bdb0e7688f652fe41c71295a42f11a26",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "613a917c2eeb88d6f60397c1a7b1bf68418871b43adc19e0ab8c6e78db88edbc",
+            "index": 0
+          }
+        }
+      },
+      "iETH/.": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 16
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "893828eeaa8bf4322559da69b69f0f36795d430f5942e2472cef8a88",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "9c5a7fbaf960fe4d64ceb6c7d18d90a681fa58208fdb56b3558ed95ec5fa4a76",
+            "index": 0
+          }
+        }
+      },
+      "iSOL/.": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 6
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 16
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "9a899983b90e2c2cfbc985cd34812a1ba393e169d7f7d277085ab14a",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "f57e8b0c1840e95ec2aa7249d900c42b9d1aafc85df15b073a210a014d336f5d",
+            "index": 0
+          }
+        }
+      },
+      "iJPY/.": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "inverse",
+                "val": {
+                  "tag": "value",
+                  "val": {
+                    "priceFeedId": 340
+                  }
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 16
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "0db1238594da8cb18260454e115dd63bd9789aad487ff1d80f59799a",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "53c94e1e6f5e9434fe5c9e6568dc3d298e07033e8b39d4d070ab5d2466b4365a",
+            "index": 0
+          }
+        }
+      },
+      "iEUR/.": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 327
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 16
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "9da7071e0abb11aa4e1b669ae60592d3dbcaade6e9724c45b1a654eb",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "82a32917d067b63c583bf899cd99a82ce0b805133245fc7f64bde622a5a55c56",
+            "index": 0
+          }
+        }
+      },
+      "iUSD/0691b2fecca1ac4f53cb6dfb00b7013e561d1f34403b957cbb5af1fa.4e49474854": {
+        "params": {
+          "config": {
+            "tag": "inverse",
+            "val": {
+              "tag": "value",
+              "val": {
+                "priceFeedId": 2970
+              }
+            }
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "1d4c0f85dcbcc230f1550f30574206c5b9bddff47b7b135edb12de69",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "c0f819c293835ebcb51484e53c9dda5d7df1218d11f726e29b88c00ae6ec74f5",
+            "index": 0
+          }
+        }
+      },
+      "iEUR/0691b2fecca1ac4f53cb6dfb00b7013e561d1f34403b957cbb5af1fa.4e49474854": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 327
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2970
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "2104dd1545835d7b13f2dd482bcc3943cf42ec15fa968411d4632149",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "03225cd8cdd089c3bbf626d7ab9c480ddd62f76aa6cd97e5c2edb1eeb7c84675",
+            "index": 0
+          }
+        }
+      },
+      "iJPY/0691b2fecca1ac4f53cb6dfb00b7013e561d1f34403b957cbb5af1fa.4e49474854": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "inverse",
+                "val": {
+                  "tag": "value",
+                  "val": {
+                    "priceFeedId": 340
+                  }
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2970
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "00bc4b3a8710593c2e25c6e151fbdff3ec79106e828a48e16f9422f8",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "54baaec90d30a3e14ca219466e9676bf4a777fea0c5bc485263aa35a8fac71a3",
+            "index": 0
+          }
+        }
+      },
+      "iEUR/1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34.5553444378": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 327
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 7
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "0b1d64e558d1c38e420c2348e8674c99cf9a4552ebc4e18c1f20a20b",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "555555b2b8fde6b3b96598c2e8e6f2fa2ce72794b89ea15e3bc41baf553bab70",
+            "index": 0
+          }
+        }
+      },
+      "iJPY/1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34.5553444378": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "inverse",
+                "val": {
+                  "tag": "value",
+                  "val": {
+                    "priceFeedId": 340
+                  }
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 7
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "f2c4e1f46052f4f1de0088a9c70889b3bef48bd6015fd4c0adb3195c",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "45a5c78e6a41885ec0ff5e50ce5dee9ec1d0fdee2db71825cefdc09c8387ccf1",
+            "index": 0
+          }
+        }
+      },
+      "iBTC/0691b2fecca1ac4f53cb6dfb00b7013e561d1f34403b957cbb5af1fa.4e49474854": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 1
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2970
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "176c55745286f4a139bf69719514fb4769be572f0b009b31ae482a3d",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "6b5285b966b078748220f7ac66548c72240dfc6018a4a9e357c37b821a9289f3",
+            "index": 0
+          }
+        }
+      },
+      "iETH/0691b2fecca1ac4f53cb6dfb00b7013e561d1f34403b957cbb5af1fa.4e49474854": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2970
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "9fd83fdd93a6945790498fe47fdeff28a8beda1f611784edcd1fee98",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "ff665fb155bfee8b6c924c908d5836954563e6f916005392c2b0dcc55be954bb",
+            "index": 0
+          }
+        }
+      },
+      "iBTC/1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34.5553444378": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 1
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 7
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "df5a33036a62f20fa23f07d50a8da0b56714ae6c69f7389b82318fef",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "c58b56dd16aaf1f133c845853c84478fba44514f7c12edb26fae6ac003a686f5",
+            "index": 0
+          }
+        }
+      },
+      "iETH/1f3aec8bfe7ea4fe14c5f121e2a92e301afe414147860d557cac7e34.5553444378": {
+        "params": {
+          "config": {
+            "tag": "divide",
+            "val": [
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 2
+                }
+              },
+              {
+                "tag": "value",
+                "val": {
+                  "priceFeedId": 7
+                }
+              }
+            ]
+          },
+          "pythStatePolicyId": {
+            "unCurrencySymbol": "c935c937d0deda8975142c7b77aeef8f8cd48791e89a8ca7a0edc154"
+          }
+        },
+        "pythFeedValHash": "f83f5e86412ad360e1f6f248503b11fa92edf4aaa4a6799f1f067317",
+        "pythFeedValScriptRef": {
+          "input": {
+            "transactionId": "7ee694364659bf6b6ece9d9cd5f01d3223fe82d097a2e8c47d11cd463dc4747f",
+            "index": 0
+          }
+        }
+      }
+    }
+  },
+  "cdpRedeemParams": {
+    "cdpAuthToken": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "cdpAssetSymbol": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "iAssetAuthToken": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "collateralAssetAuthToken": [
+      {
+        "unCurrencySymbol": "b7d412f51a05bacbb34693bcac61efa935a8717d4b07801a115936ff"
+      },
+      {
+        "unTokenName": "COLLATERAL_ASSET"
+      }
+    ],
+    "interestCollectorValHash": "2cac220a78a8943ed132b2cd2a24f2d26e80bdd66ab54d47517ffc04",
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "treasuryValHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd",
+    "govNFT": [
+      {
+        "unCurrencySymbol": "2fccae8bc1c8553a2185b2e77ccdea22f2e1d6e87beb80ef4eaf8cce"
+      },
+      {
+        "unTokenName": "GOV_NFT"
+      }
+    ],
+    "partialRedemptionExtraFeeLovelace": 10000000,
+    "biasTime": "1200000"
+  },
+  "iassetParams": {
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ]
+  },
+  "cdpCreatorParams": {
+    "biasTime": 1200000,
+    "cdpAssetCs": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "cdpAuthTk": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "iAssetAuthTk": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "cdpScriptHash": "ff0b10bff20e4b68b491492e5ba6c8048a704763b0a45ce2995da0be",
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "cdpCreatorNft": [
+      {
+        "unCurrencySymbol": "735b37149eb0c2a5fb590bd60e39fe90ae3a96b6065b05d7aca99ebb"
+      },
+      {
+        "unTokenName": "CDP_CREATOR"
+      }
+    ],
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "collateralAssetAuthTk": [
+      {
+        "unCurrencySymbol": "b7d412f51a05bacbb34693bcac61efa935a8717d4b07801a115936ff"
+      },
+      {
+        "unTokenName": "COLLATERAL_ASSET"
+      }
+    ],
+    "treasuryValHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd"
+  },
+  "cdpParams": {
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "treasuryValHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd",
+    "stabilityPoolAuthToken": [
+      {
+        "unCurrencySymbol": "3f28fb7d6c40468262dffb1c3adb568b342499826b664d940085d022"
+      },
+      {
+        "unTokenName": "STABILITY_POOL"
+      }
+    ],
+    "spValHash": "1c53ed6f616687b340ac83072ec65a9787583c01d6bae0314e1d61d0",
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "interestCollectorValHash": "2cac220a78a8943ed132b2cd2a24f2d26e80bdd66ab54d47517ffc04",
+    "iAssetAuthToken": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "cdpAuthToken": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "cdpAssetSymbol": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "biasTime": "1200000",
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "collateralAssetAuthToken": [
+      {
+        "unCurrencySymbol": "b7d412f51a05bacbb34693bcac61efa935a8717d4b07801a115936ff"
+      },
+      {
+        "unTokenName": "COLLATERAL_ASSET"
+      }
+    ],
+    "cdpRedeemValHash": "1967409518c2ff89df164619c14926a689ce00b4690ecfb024592ad3"
+  },
+  "collectorParams": {
+    "stakingManagerNFT": [
+      {
+        "unCurrencySymbol": "24b458412c2a7f9acb9c53c7ec4325b36806912ed56d2f91bfcf4d26"
+      },
+      {
+        "unTokenName": "STAKING_MANAGER_NFT"
+      }
+    ],
+    "stakingToken": [
+      {
+        "unCurrencySymbol": "fd0d72fafee1d230a74c31ac503a192abd5b71888ae3f94128c1e634"
+      },
+      {
+        "unTokenName": "STAKING_POSITION"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ]
+  },
+  "executeParams": {
+    "govNFT": [
+      {
+        "unCurrencySymbol": "2fccae8bc1c8553a2185b2e77ccdea22f2e1d6e87beb80ef4eaf8cce"
+      },
+      {
+        "unTokenName": "GOV_NFT"
+      }
+    ],
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "iAssetToken": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "stabilityPoolToken": [
+      {
+        "unCurrencySymbol": "3f28fb7d6c40468262dffb1c3adb568b342499826b664d940085d022"
+      },
+      {
+        "unTokenName": "STABILITY_POOL"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "sPoolValHash": "1c53ed6f616687b340ac83072ec65a9787583c01d6bae0314e1d61d0",
+    "versionRegistryValHash": "ea84d625650d066e1645e3e81d9c70a73f9ed837bd96dc49850ae744",
+    "treasuryValHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd",
+    "cdpCreatorToken": [
+      {
+        "unCurrencySymbol": "735b37149eb0c2a5fb590bd60e39fe90ae3a96b6065b05d7aca99ebb"
+      },
+      {
+        "unTokenName": "CDP_CREATOR"
+      }
+    ],
+    "cdpToken": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "cdpValHash": "ff0b10bff20e4b68b491492e5ba6c8048a704763b0a45ce2995da0be",
+    "collateralAssetToken": [
+      {
+        "unCurrencySymbol": "b7d412f51a05bacbb34693bcac61efa935a8717d4b07801a115936ff"
+      },
+      {
+        "unTokenName": "COLLATERAL_ASSET"
+      }
+    ]
+  },
+  "govParams": {
+    "gBiasTime": 1200000,
+    "govNFT": [
+      {
+        "unCurrencySymbol": "2fccae8bc1c8553a2185b2e77ccdea22f2e1d6e87beb80ef4eaf8cce"
+      },
+      {
+        "unTokenName": "GOV_NFT"
+      }
+    ],
+    "pollToken": [
+      {
+        "unCurrencySymbol": "f9b162ea9529e639a083595294006a833473883a75d6df1e4c22dd4f"
+      },
+      {
+        "unTokenName": "POLL_MANAGER"
+      }
+    ],
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "indyAsset": [
+      {
+        "unCurrencySymbol": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0"
+      },
+      {
+        "unTokenName": "INDY"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "pollManagerValHash": "2c64c712d8ea012866a0e52119409992dcbee828b5e89f58b6c13c68",
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "daoIdentityToken": [
+      {
+        "unCurrencySymbol": "07d3770b2ddfa1cb35d32fab2446731f50efd9229ae4b1180552558d"
+      },
+      {
+        "unTokenName": "DAO"
+      }
+    ],
+    "iAssetAuthToken": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "iassetSymbol": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    }
+  },
+  "indyToken": [
+    {
+      "unCurrencySymbol": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0"
+    },
+    {
+      "unTokenName": "INDY"
+    }
+  ],
+  "interestCollectionParams": {
+    "cdpAssetSymbol": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "cdpAuthTk": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "collateralAssetAuthTk": [
+      {
+        "unCurrencySymbol": "b7d412f51a05bacbb34693bcac61efa935a8717d4b07801a115936ff"
+      },
+      {
+        "unTokenName": "COLLATERAL_ASSET"
+      }
+    ],
+    "versionRecordNft": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "multisigUtxoNft": [
+      {
+        "unCurrencySymbol": "47fa499d17c414c9a1a2246960827ef5085aabf7d558715474622d36"
+      },
+      {
+        "unTokenName": "INTEREST_ADMIN"
+      }
+    ],
+    "cdpBiasTime": "1200000",
+    "interestSettlementCooldown": "7200000",
+    "govAuthTk": [
+      {
+        "unCurrencySymbol": "2fccae8bc1c8553a2185b2e77ccdea22f2e1d6e87beb80ef4eaf8cce"
+      },
+      {
+        "unTokenName": "GOV_NFT"
+      }
+    ]
+  },
+  "robParams": {
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "iassetAuthToken": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "iassetPolicyId": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "collateralAssetAuthToken": [
+      {
+        "unCurrencySymbol": "b7d412f51a05bacbb34693bcac61efa935a8717d4b07801a115936ff"
+      },
+      {
+        "unTokenName": "COLLATERAL_ASSET"
+      }
+    ]
+  },
+  "pollManagerParams": {
+    "treasuryValHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd",
+    "govNFT": [
+      {
+        "unCurrencySymbol": "2fccae8bc1c8553a2185b2e77ccdea22f2e1d6e87beb80ef4eaf8cce"
+      },
+      {
+        "unTokenName": "GOV_NFT"
+      }
+    ],
+    "pollToken": [
+      {
+        "unCurrencySymbol": "f9b162ea9529e639a083595294006a833473883a75d6df1e4c22dd4f"
+      },
+      {
+        "unTokenName": "POLL_MANAGER"
+      }
+    ],
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "indyAsset": [
+      {
+        "unCurrencySymbol": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0"
+      },
+      {
+        "unTokenName": "INDY"
+      }
+    ],
+    "govExecuteValHash": "0e764163b06d954f2dcfecf8d3b257e2bfe3d326d5670e54ca1974ce",
+    "pBiasTime": 1200000,
+    "shardsValHash": "814dc78cc5e5076ecffee9a2a0d9e0502531cc5d3f93de90b01c5a03"
+  },
+  "pollShardParams": {
+    "pollToken": [
+      {
+        "unCurrencySymbol": "f9b162ea9529e639a083595294006a833473883a75d6df1e4c22dd4f"
+      },
+      {
+        "unTokenName": "POLL_MANAGER"
+      }
+    ],
+    "stakingToken": [
+      {
+        "unCurrencySymbol": "fd0d72fafee1d230a74c31ac503a192abd5b71888ae3f94128c1e634"
+      },
+      {
+        "unTokenName": "STAKING_POSITION"
+      }
+    ],
+    "indyAsset": [
+      {
+        "unCurrencySymbol": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0"
+      },
+      {
+        "unTokenName": "INDY"
+      }
+    ],
+    "stakingValHash": "112996eb011f20eacc28ded86cde177a53ed22264e0131199c983a7e"
+  },
+  "stabilityPoolParams": {
+    "assetSymbol": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "stabilityPoolToken": [
+      {
+        "unCurrencySymbol": "3f28fb7d6c40468262dffb1c3adb568b342499826b664d940085d022"
+      },
+      {
+        "unTokenName": "STABILITY_POOL"
+      }
+    ],
+    "snapshotEpochToScaleToSumToken": [
+      {
+        "unCurrencySymbol": "98ebc5df52729be30f9983cc878acba0a1cabbf2fd329b5a16214720"
+      },
+      {
+        "unTokenName": "SP_EPOCH"
+      }
+    ],
+    "accountToken": [
+      {
+        "unCurrencySymbol": "443c51db609bba8b2aa4c8af248bf797cbfcfa1e413c443296a50813"
+      },
+      {
+        "unTokenName": "SP_ACCOUNT"
+      }
+    ],
+    "cdpToken": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "iAssetAuthToken": [
+      {
+        "unCurrencySymbol": "97da12de04a6b527cc3b3469c5e5485cf258dfd1021f12e728f2e714"
+      },
+      {
+        "unTokenName": "IASSET"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "iassetValHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "accountCreateFeeLovelaces": 5000000,
+    "accountProcessingBiasMs": 1200000,
+    "accountProcessingCooldownMs": 300000,
+    "stakeCredential": {
+      "tag": "StakingHash",
+      "contents": {
+        "tag": "ScriptCredential",
+        "contents": "b8358aadd30c60eba168608ad5e875592e9b7cb8c700827cde87f9a3"
+      }
+    }
+  },
+  "stableswapParams": {
+    "cdpToken": [
+      {
+        "unCurrencySymbol": "708f5e6d597fc038d09a738d7be32edd6ea779d6feb32a53668d9050"
+      },
+      {
+        "unTokenName": "CDP"
+      }
+    ],
+    "iassetSymbol": {
+      "unCurrencySymbol": "f66d78b4a3cb3d37afa0ec36461e51ecbde00f26c8f0a68f94b69880"
+    },
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "treasuryValHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd",
+    "cdpValHash": "ff0b10bff20e4b68b491492e5ba6c8048a704763b0a45ce2995da0be"
+  },
+  "stakingParams": {
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "stakingToken": [
+      {
+        "unCurrencySymbol": "fd0d72fafee1d230a74c31ac503a192abd5b71888ae3f94128c1e634"
+      },
+      {
+        "unTokenName": "STAKING_POSITION"
+      }
+    ],
+    "stakingManagerNFT": [
+      {
+        "unCurrencySymbol": "24b458412c2a7f9acb9c53c7ec4325b36806912ed56d2f91bfcf4d26"
+      },
+      {
+        "unTokenName": "STAKING_MANAGER_NFT"
+      }
+    ],
+    "pollToken": [
+      {
+        "unCurrencySymbol": "f9b162ea9529e639a083595294006a833473883a75d6df1e4c22dd4f"
+      },
+      {
+        "unTokenName": "POLL_MANAGER"
+      }
+    ],
+    "indyToken": [
+      {
+        "unCurrencySymbol": "533bb94a8850ee3ccbe483106489399112b74c905342cb1792a797a0"
+      },
+      {
+        "unTokenName": "INDY"
+      }
+    ],
+    "collectorValHash": "68f23cd9befc2a74a00620b49d66a569cd130b290cd703e5c11891fd"
+  },
+  "startTime": {
+    "slot": 77419576,
+    "blockHeader": "2906cb8553ad8d58befa954ba077709ef3ef9dcb59d2ab95b8e6bd25dd36e3a5"
+  },
+  "treasuryParams": {
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ],
+    "versionRecordToken": [
+      {
+        "unCurrencySymbol": "d626ddf398b0bca6e112cf0b78c8124b989a6ca4e7c0dfe8c18c7c2e"
+      },
+      {
+        "unTokenName": "VERSION_RECORD"
+      }
+    ],
+    "treasuryUtxosStakeCredential": {
+      "tag": "StakingHash",
+      "contents": {
+        "tag": "ScriptCredential",
+        "contents": "b8358aadd30c60eba168608ad5e875592e9b7cb8c700827cde87f9a3"
+      }
+    }
+  },
+  "versionRecordParams": {
+    "upgradeToken": [
+      {
+        "unCurrencySymbol": "ca72f111cc130ac311259181e0720516c044cee30704706a0299c2a8"
+      },
+      {
+        "unTokenName": "UPGRADE"
+      }
+    ]
+  },
+  "validatorHashes": {
+    "cdpCreatorHash": "95c1458dad9dfddfab22d163fccbb9a8de483ace1e1c990b1f5e3eff",
+    "cdpHash": "ff0b10bff20e4b68b491492e5ba6c8048a704763b0a45ce2995da0be",
+    "executeHash": "0e764163b06d954f2dcfecf8d3b257e2bfe3d326d5670e54ca1974ce",
+    "govHash": "adc336ca673fd1568b58ee970220110f8d6ef8dd6ec2b12b1dc1a64b",
+    "interestCollectionHash": "2cac220a78a8943ed132b2cd2a24f2d26e80bdd66ab54d47517ffc04",
+    "pollShardHash": "814dc78cc5e5076ecffee9a2a0d9e0502531cc5d3f93de90b01c5a03",
+    "pollManagerHash": "2c64c712d8ea012866a0e52119409992dcbee828b5e89f58b6c13c68",
+    "treasuryHash": "46ffe1d162ef5c1c4d4c0b92eb410e8148c59c547952ebac39622abd",
+    "stabilityPoolHash": "1c53ed6f616687b340ac83072ec65a9787583c01d6bae0314e1d61d0",
+    "stakingHash": "112996eb011f20eacc28ded86cde177a53ed22264e0131199c983a7e",
+    "collectorHash": "68f23cd9befc2a74a00620b49d66a569cd130b290cd703e5c11891fd",
+    "versionRegistryHash": "ea84d625650d066e1645e3e81d9c70a73f9ed837bd96dc49850ae744",
+    "robHash": "d5c1360584a962b43f6acd8a511e23d28896deb9c45a218db3bc857c",
+    "iassetHash": "a9c613a0e6f6bef5a4f6b1d15f8bdd5b1105fede0a3c380d1a920028",
+    "stableswapHash": "245425bb49411414dca4af8f25097c5a27f923249c0779ffaa2bc5a3"
+  },
+  "scriptReferences": {
+    "interestCollectionValidatorRef": {
+      "input": {
+        "transactionId": "78ed00ff6566fcebde5649da0256e8fbcada397c5dd11e7176063925700cef30",
+        "index": 0
+      }
+    },
+    "robValidatorRef": {
+      "input": {
+        "transactionId": "61c3d17a49f9fd377a56755c245c4d093655047a058061980b41452c07ba4771",
+        "index": 0
+      }
+    },
+    "cdpCreatorValidatorRef": {
+      "input": {
+        "transactionId": "528a870ae53cd77dde8ace624ffd25610057e059466ded1d5d525d60141bf667",
+        "index": 0
+      }
+    },
+    "cdpValidatorRef": {
+      "input": {
+        "transactionId": "f1275d84896bff1e557b7dc7d9cd4030fcd5539ae5ec99c3dd97d818c75c950a",
+        "index": 0
+      }
+    },
+    "cdpRedeemValidatorRef": {
+      "input": {
+        "transactionId": "026712fd243d3219f47ad7ef818f9808b9598151eede8ea853dbea853be50b90",
+        "index": 0
+      }
+    },
+    "collectorValidatorRef": {
+      "input": {
+        "transactionId": "4dfcc06496c2aee494909d7508a959d29465061db4cefb26ce331c971a9f606d",
+        "index": 0
+      }
+    },
+    "executeValidatorRef": {
+      "input": {
+        "transactionId": "41ff5fadd8b227987931895adcae71356955a46b4cd4cb7385c4f1a12ed1ccf5",
+        "index": 0
+      }
+    },
+    "pollShardValidatorRef": {
+      "input": {
+        "transactionId": "7fed34194fb46480fb9058ea637050b4f197f2095946e52c2aa2d00748a6b56d",
+        "index": 0
+      }
+    },
+    "pollManagerValidatorRef": {
+      "input": {
+        "transactionId": "57f2c221bb4742fd345dd40ba21fe1bccd68e75bdd9608c928fee5373392b326",
+        "index": 0
+      }
+    },
+    "iAssetTokenPolicyRef": {
+      "input": {
+        "transactionId": "8fac023fd9556f66ffdac8cb71879fabd6995480f7ad976213d1e1ee85de75cd",
+        "index": 0
+      }
+    },
+    "stakingValidatorRef": {
+      "input": {
+        "transactionId": "03a6b59ef3ca62527282aaf3461f374009392eb8a79aad635196077c17e74b28",
+        "index": 0
+      }
+    },
+    "stabilityPoolValidatorRef": {
+      "input": {
+        "transactionId": "8b76f66191bc65f0a7e4106b85a95b5524329a00049932f75faebdce4651d249",
+        "index": 0
+      }
+    },
+    "stableswapValidatorRef": {
+      "input": {
+        "transactionId": "5a3581c7623683ca7a458f368d215816390c9cdaa8b5748deb7904b571889005",
+        "index": 0
+      }
+    },
+    "treasuryValidatorRef": {
+      "input": {
+        "transactionId": "197fce64a7ebebc18d1f49883b8e4f90e95a2c92e3650d07204ca555a939eb8d",
+        "index": 0
+      }
+    },
+    "governanceValidatorRef": {
+      "input": {
+        "transactionId": "c2275e7c4bc568f2e205bf7479ec06bd05320b89a34fa63919fdb480f5331c3b",
+        "index": 0
+      }
+    },
+    "versionRegistryValidatorRef": {
+      "input": {
+        "transactionId": "40f186ab184a96706c75696ec2e782e0b44c2305007aa4b65b9cb46d0297c464",
+        "index": 0
+      }
+    },
+    "iassetValidatorRef": {
+      "input": {
+        "transactionId": "cb580ecb4f7c44a6a88ca3480304a5f077973f131c611e06e897e4182edded41",
+        "index": 0
+      }
+    },
+    "authTokenPolicies": {
+      "cdpAuthTokenRef": {
+        "input": {
+          "transactionId": "c0a4c2ad340da8686c723a21b0a029aefee650fcaf5ef964742f499efb7c21f8",
+          "index": 0
+        }
+      },
+      "iAssetAuthTokenRef": {
+        "input": {
+          "transactionId": "0c55ef7cdbc088057a76e1084aa9cc8dbd6350a720deceee490ce4cc8fc96a98",
+          "index": 0
+        }
+      },
+      "accountTokenRef": {
+        "input": {
+          "transactionId": "30da7a55243c482b8a0ef585fa14166a9f83de1d82fabba46e228b208e8bc31b",
+          "index": 0
+        }
+      },
+      "stabilityPoolAuthTokenRef": {
+        "input": {
+          "transactionId": "0e0b43ef4e35a4a50765661a3f32074234e77439d434292584a4c3446daf7081",
+          "index": 0
+        }
+      },
+      "pollManagerTokenRef": {
+        "input": {
+          "transactionId": "ce15074316b6d7841054a13b54ff9d978d22802e412cfb199a3a8e1cc48e98ff",
+          "index": 0
+        }
+      },
+      "stakingTokenRef": {
+        "input": {
+          "transactionId": "71dc6b81e8832192bb28ecbc6a4f71b6e0dc0407c708f169020804371450b4e7",
+          "index": 0
+        }
+      },
+      "versionRecordTokenPolicyRef": {
+        "input": {
+          "transactionId": "698604508087ee839966b5f53201e55507edb883e5a2e977e6b0d386830df3ce",
+          "index": 0
+        }
+      },
+      "iAssetTokenRef": {
+        "input": {
+          "transactionId": "0c55ef7cdbc088057a76e1084aa9cc8dbd6350a720deceee490ce4cc8fc96a98",
+          "index": 0
+        }
+      },
+      "collateralAssetTokenRef": {
+        "input": {
+          "transactionId": "63200f84ff3a35590a78b5c261a70b608d6a26cf9f36b99cdaf75be3543bc318",
+          "index": 0
+        }
+      },
+      "upgradeTokenRef": {
+        "input": {
+          "transactionId": "f11fd5957a620420cdb3f580152aaae12dbd6f9c106188edd57d927d3672f50b",
+          "index": 0
+        }
+      },
+      "stabilityPoolTokenRef": {
+        "input": {
+          "transactionId": "0e0b43ef4e35a4a50765661a3f32074234e77439d434292584a4c3446daf7081",
+          "index": 0
+        }
+      },
+      "snapshotEpochToScaleToSumTokenRef": {
+        "input": {
+          "transactionId": "ce414f9ea0169658e640e0cd44a21483a3dc2e704d973fd31d5ee26581935a3d",
+          "index": 0
+        }
+      }
+    }
+  }
+}
