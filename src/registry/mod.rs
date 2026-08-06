@@ -64,5 +64,4 @@ impl TiiRegistry {
     pub fn names(&self) -> impl Iterator<Item = &String> {
         self.protocols.keys()
     }
-
 }

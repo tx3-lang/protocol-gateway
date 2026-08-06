@@ -240,16 +240,10 @@ fn params_from_raw_protocol(
     );
 
     if !prefilled.is_empty() {
-        desc.push_str(&format!(
-            "\nProfile pre-fills: {}",
-            prefilled.join(", ")
-        ));
+        desc.push_str(&format!("\nProfile pre-fills: {}", prefilled.join(", ")));
     }
     if !required.is_empty() {
-        desc.push_str(&format!(
-            "\nCaller must supply: {}",
-            required.join(", ")
-        ));
+        desc.push_str(&format!("\nCaller must supply: {}", required.join(", ")));
     }
 
     Some((descriptors, desc))
@@ -331,17 +325,11 @@ pub fn generate_openrpc(state: &AppState, protocol_name: &str) -> Value {
                     );
 
                     if !prefilled.is_empty() {
-                        desc.push_str(&format!(
-                            "\nProfile pre-fills: {}",
-                            prefilled.join(", ")
-                        ));
+                        desc.push_str(&format!("\nProfile pre-fills: {}", prefilled.join(", ")));
                     }
 
                     if !required.is_empty() {
-                        desc.push_str(&format!(
-                            "\nCaller must supply: {}",
-                            required.join(", ")
-                        ));
+                        desc.push_str(&format!("\nCaller must supply: {}", required.join(", ")));
                     }
 
                     (descriptors, desc)
@@ -349,9 +337,7 @@ pub fn generate_openrpc(state: &AppState, protocol_name: &str) -> Value {
                 Err(_) => {
                     // Fallback: parse params from raw protocol JSON when the SDK
                     // cannot handle a param type (e.g. "type": "object" enums).
-                    if let Some(fallback) =
-                        params_from_raw_protocol(protocol, tx_name, network)
-                    {
+                    if let Some(fallback) = params_from_raw_protocol(protocol, tx_name, network) {
                         fallback
                     } else {
                         let desc = format!(

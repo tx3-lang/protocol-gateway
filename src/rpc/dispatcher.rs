@@ -75,4 +75,3 @@ pub async fn dispatch(
         Err(err) => (StatusCode::OK, Json(err.to_json_rpc(id))),
     }
 }
-
